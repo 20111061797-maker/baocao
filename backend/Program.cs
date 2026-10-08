@@ -9,6 +9,10 @@ using ProductionDashboard.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind to Railway / Cloud PORT or default to 5251
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5251";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
 // 1. Database
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -48,10 +52,14 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var parser = scope.ServiceProvider.GetRequiredService<ExcelParserService>();
     string workspaceRoot = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, ".."));
+    if (!Directory.Exists(workspaceRoot) || !File.Exists(Path.Combine(workspaceRoot, "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG (1).xlsx")))
+    {
+        workspaceRoot = app.Environment.ContentRootPath;
+    }
     try
     {
         DataSeeder.Initialize(context, parser, workspaceRoot);
-        Console.WriteLine("[INFO] Database initialized and seeded successfully.");
+        Console.WriteLine($"[INFO] Database initialized and seeded successfully on port {port}.");
     }
     catch (Exception ex)
     {

@@ -1,0 +1,21 @@
+# Build & Output
+**/bin/
+**/obj/
+**/publish/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Frontend dependencies & output
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# System files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
