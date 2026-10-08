@@ -38,19 +38,32 @@ namespace ProductionDashboard.Api.Data
             SeedProductionRecords(context, parserService, workspacePath);
 
             // 2. Seed Inventory
-            string inventoryFilePath = Path.Combine(workspacePath, "KIỂM KÊ D6(1111).xlsx");
-            if (!File.Exists(inventoryFilePath))
+            string[] invCandidates = new[]
             {
-                var files = Directory.GetFiles(workspacePath, "*KI*M*KE*.xlsx");
-                if (files.Length > 0) inventoryFilePath = files[0];
-                else
+                Path.Combine(workspacePath, "sample_data", "Kiem_Ke_D6.xlsx"),
+                Path.Combine(AppContext.BaseDirectory, "sample_data", "Kiem_Ke_D6.xlsx"),
+                Path.Combine(workspacePath, "sample_data", "KiemKe_VatTu_D6_2026-10-08.xlsx"),
+                Path.Combine(AppContext.BaseDirectory, "sample_data", "KiemKe_VatTu_D6_2026-10-08.xlsx"),
+                Path.Combine(workspacePath, "KIỂM KÊ D6(1111).xlsx"),
+                Path.Combine(workspacePath, "KIỂM KÊ D6(1111).xlsx"),
+                Path.Combine(workspacePath, "KiemKe_VatTu_D6_2026-10-08.xlsx")
+            };
+            string inventoryFilePath = invCandidates.FirstOrDefault(File.Exists) ?? "";
+            if (string.IsNullOrEmpty(inventoryFilePath))
+            {
+                if (Directory.Exists(workspacePath))
                 {
-                    var cur = new DirectoryInfo(workspacePath);
-                    while (cur != null && !File.Exists(inventoryFilePath))
+                    var files = Directory.GetFiles(workspacePath, "*KI*M*KE*.xlsx");
+                    if (files.Length > 0) inventoryFilePath = files[0];
+                    else
                     {
-                        var found = cur.GetFiles("*KI*M*KE*.xlsx");
-                        if (found.Length > 0) { inventoryFilePath = found[0].FullName; break; }
-                        cur = cur.Parent;
+                        var cur = new DirectoryInfo(workspacePath);
+                        while (cur != null && !File.Exists(inventoryFilePath))
+                        {
+                            var found = cur.GetFiles("*KI*M*KE*.xlsx");
+                            if (found.Length > 0) { inventoryFilePath = found[0].FullName; break; }
+                            cur = cur.Parent;
+                        }
                     }
                 }
             }
@@ -84,19 +97,30 @@ namespace ProductionDashboard.Api.Data
         private static void SeedProductionRecords(AppDbContext context, ExcelParserService parserService, string workspacePath)
         {
             // Resolve file paths with robust fallbacks
-            string productionFilePath = Path.Combine(workspacePath, "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG (1).xlsx");
-            if (!File.Exists(productionFilePath))
+            string[] prodCandidates = new[]
             {
-                var pFiles = Directory.GetFiles(workspacePath, "*Bao_Cao_Tong_Hop*.xlsx");
-                if (pFiles.Length > 0) productionFilePath = pFiles[0];
-                else
+                Path.Combine(workspacePath, "sample_data", "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG.xlsx"),
+                Path.Combine(AppContext.BaseDirectory, "sample_data", "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG.xlsx"),
+                Path.Combine(workspacePath, "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG.xlsx"),
+                Path.Combine(workspacePath, "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG (1).xlsx"),
+                Path.Combine(AppContext.BaseDirectory, "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG (1).xlsx")
+            };
+            string productionFilePath = prodCandidates.FirstOrDefault(File.Exists) ?? "";
+            if (string.IsNullOrEmpty(productionFilePath))
+            {
+                if (Directory.Exists(workspacePath))
                 {
-                    var cur = new DirectoryInfo(workspacePath);
-                    while (cur != null && !File.Exists(productionFilePath))
+                    var pFiles = Directory.GetFiles(workspacePath, "*Bao_Cao_Tong_Hop*.xlsx");
+                    if (pFiles.Length > 0) productionFilePath = pFiles[0];
+                    else
                     {
-                        var found = cur.GetFiles("*Bao_Cao_Tong_Hop*.xlsx");
-                        if (found.Length > 0) { productionFilePath = found[0].FullName; break; }
-                        cur = cur.Parent;
+                        var cur = new DirectoryInfo(workspacePath);
+                        while (cur != null && !File.Exists(productionFilePath))
+                        {
+                            var found = cur.GetFiles("*Bao_Cao_Tong_Hop*.xlsx");
+                            if (found.Length > 0) { productionFilePath = found[0].FullName; break; }
+                            cur = cur.Parent;
+                        }
                     }
                 }
             }

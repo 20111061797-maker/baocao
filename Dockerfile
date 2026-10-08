@@ -18,9 +18,7 @@ WORKDIR /app
 COPY --from=build /app/publish .
 
 # Copy factory Excel files for automatic seeder initialization
-COPY "Bao_Cao_Tong_Hop_San_Luong_Nhan_Luc_NG (1).xlsx" /app/
-COPY "KIỂM KÊ D6(1111).xlsx" /app/
-COPY "KiemKe_VatTu_D6_2026-10-08.xlsx" /app/
+COPY sample_data/ /app/sample_data/
 
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV PORT=8080
