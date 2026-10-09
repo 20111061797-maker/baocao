@@ -23,6 +23,8 @@ import { InventoryAuditModal } from './components/InventoryAuditModal';
 import { InventoryWidget } from './components/InventoryWidget';
 import { UploadExcelModal } from './components/UploadExcelModal';
 import { LayoutSettingsModal } from './components/LayoutSettingsModal';
+import { ProductionCrudModal } from './components/ProductionCrudModal';
+import { InventoryCrudModal } from './components/InventoryCrudModal';
 
 export const App: React.FC = () => {
   // 1. Theme & Localization
@@ -77,11 +79,19 @@ export const App: React.FC = () => {
   });
   const [openUpload, setOpenUpload] = useState(false);
   const [openLayout, setOpenLayout] = useState(false);
+  const [openProductionCrud, setOpenProductionCrud] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && (window.location.hash === '#production-form' || window.location.search.includes('production-form=true'));
+  });
+  const [openInventoryCrud, setOpenInventoryCrud] = useState<boolean>(() => {
+    return typeof window !== 'undefined' && (window.location.hash === '#inventory-form' || window.location.search.includes('inventory-form=true'));
+  });
 
   useEffect(() => {
     const handleHash = () => {
       if (window.location.hash === '#audit') setOpenAudit(true);
       if (window.location.hash === '#8d') setProblemSolving({ open: true });
+      if (window.location.hash === '#production-form') setOpenProductionCrud(true);
+      if (window.location.hash === '#inventory-form') setOpenInventoryCrud(true);
     };
     window.addEventListener('hashchange', handleHash);
     return () => window.removeEventListener('hashchange', handleHash);
@@ -179,6 +189,8 @@ export const App: React.FC = () => {
         onOpen8D={() => setProblemSolving({ open: true })}
         onOpenAudit={() => setOpenAudit(true)}
         onOpenLayout={() => setOpenLayout(true)}
+        onOpenProductionCrud={() => setOpenProductionCrud(true)}
+        onOpenInventoryCrud={() => setOpenInventoryCrud(true)}
       />
 
       {/* 2. Global Filter Bar */}
@@ -345,6 +357,31 @@ export const App: React.FC = () => {
       {openAudit && (
         <InventoryAuditModal
           onClose={() => setOpenAudit(false)}
+          onOpenCrud={() => {
+            setOpenAudit(false);
+            setOpenInventoryCrud(true);
+          }}
+        />
+      )}
+
+      {openProductionCrud && (
+        <ProductionCrudModal
+          onClose={() => setOpenProductionCrud(false)}
+          onSuccess={() => {
+            setDataRefreshKey((k) => k + 1);
+            loadDashboardData();
+          }}
+          availableProducts={dashboardData?.availableProducts}
+        />
+      )}
+
+      {openInventoryCrud && (
+        <InventoryCrudModal
+          onClose={() => setOpenInventoryCrud(false)}
+          onSuccess={() => {
+            setDataRefreshKey((k) => k + 1);
+            loadDashboardData();
+          }}
         />
       )}
 

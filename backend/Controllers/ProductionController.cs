@@ -310,5 +310,416 @@ namespace ProductionDashboard.Api.Controllers
             string fileName = $"BaoCao_SanXuat_{from:yyyyMMdd}_{to:yyyyMMdd}.csv";
             return File(bytes, "text/csv; charset=utf-8", fileName);
         }
+
+        // ==========================================
+        // FORM 1: PRODUCTION RECORDS CRUD ENDPOINTS
+        // ==========================================
+
+        [HttpGet("crud-records")]
+        public IActionResult GetCrudRecords(
+            [FromQuery] DateTime? dateFrom,
+            [FromQuery] DateTime? dateTo,
+            [FromQuery] string? product,
+            [FromQuery] string? shift,
+            [FromQuery] string? search,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            var query = _context.ProductionRecords.AsQueryable();
+
+            if (dateFrom.HasValue) query = query.Where(p => p.Date >= dateFrom.Value.Date);
+            if (dateTo.HasValue) query = query.Where(p => p.Date <= dateTo.Value.Date);
+            if (!string.IsNullOrWhiteSpace(product) && !product.Equals("all", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(p => p.ProductCode == product);
+            if (!string.IsNullOrWhiteSpace(shift) && !shift.Equals("all", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(p => p.Shift == shift);
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                string term = search.Trim().ToLowerInvariant();
+                query = query.Where(p => p.ProductCode.ToLower().Contains(term) ||
+                                         p.ProductNameVi.ToLower().Contains(term) ||
+                                         (p.Notes != null && p.Notes.ToLower().Contains(term)));
+            }
+
+            int total = query.Count();
+            var list = query.OrderByDescending(p => p.Date).ThenBy(p => p.ProductCode)
+                            .Skip((page - 1) * pageSize)
+                            .Take(pageSize)
+                            .ToList();
+
+            var dates = list.Select(x => x.Date.Date).Distinct().ToList();
+            var codes = list.Select(x => x.ProductCode).Distinct().ToList();
+
+            var mans = _context.ManpowerRecords
+                .Where(m => dates.Contains(m.Date.Date) && codes.Contains(m.ProductCode))
+                .ToList();
+            var quals = _context.QualityRecords
+                .Where(q => dates.Contains(q.Date.Date) && codes.Contains(q.ProductCode))
+                .ToList();
+            var dts = _context.DowntimeRecords
+                .Where(d => dates.Contains(d.Date.Date) && codes.Contains(d.ProductCode))
+                .ToList();
+
+            var dtos = list.Select(r =>
+            {
+                var m = mans.FirstOrDefault(x => x.Date.Date == r.Date.Date && x.ProductCode == r.ProductCode);
+                var q = quals.FirstOrDefault(x => x.Date.Date == r.Date.Date && x.ProductCode == r.ProductCode);
+                var dt = dts.FirstOrDefault(x => x.Date.Date == r.Date.Date && x.ProductCode == r.ProductCode);
+
+                return new ProductionRecordCrudDto
+                {
+                    Id = r.Id,
+                    Date = r.Date,
+                    ProductCode = r.ProductCode,
+                    ProductNameVi = string.IsNullOrEmpty(r.ProductNameVi) ? ExcelParserService.GetVietnameseProductName(r.ProductCode) : r.ProductNameVi,
+                    Shift = r.Shift,
+                    PlannedQuantity = r.PlannedQuantity,
+                    ActualQuantity = r.ActualQuantity,
+                    StandardWorkingTime = r.StandardWorkingTime,
+                    WorkingHours = r.WorkingHours,
+                    AchievementRate = r.AchievementRate,
+                    Efficiency = r.Efficiency,
+                    UPH = r.UPH,
+                    Status = r.Status,
+                    Notes = r.Notes,
+
+                    PlannedManpower = m?.PlannedManpower ?? 0,
+                    ActualManpower = m?.ActualManpower ?? 0,
+                    MissingManpower = m?.MissingManpower ?? 0,
+
+                    FunctionalNG = q?.FunctionalNG ?? 0,
+                    AudioNG = q?.AudioNG ?? 0,
+                    ScratchNG = q?.ScratchNG ?? 0,
+                    EdgeChipNG = q?.EdgeChipNG ?? 0,
+                    WireNG = q?.WireNG ?? 0,
+                    PCBANG = q?.PCBANG ?? 0,
+                    THDNG = q?.THDNG ?? 0,
+                    SpeakerNG = q?.SpeakerNG ?? 0,
+                    CoverNG = q?.CoverNG ?? 0,
+                    NomaliNG = q?.NomaliNG ?? 0,
+                    BrokenWireNG = q?.BrokenWireNG ?? 0,
+                    TotalNG = q?.TotalNG ?? 0,
+                    NGRate = q?.NGRatio ?? 0,
+
+                    DowntimeMinutes = dt?.DowntimeMinutes ?? 0,
+                    DowntimeReason = dt?.DowntimeReason ?? "",
+                    ImpactDepartment = dt?.ImpactDepartment ?? ""
+                };
+            }).ToList();
+
+            return Ok(new { total, page, pageSize, records = dtos });
+        }
+
+        [HttpPost("record")]
+        public IActionResult CreateProductionRecord([FromBody] ProductionRecordCrudDto dto)
+        {
+            if (dto == null) return BadRequest(new { message = "Dữ liệu không hợp lệ." });
+            if (string.IsNullOrWhiteSpace(dto.ProductCode))
+                return BadRequest(new { message = "Vui lòng chọn mã sản phẩm / công đoạn." });
+
+            string nameVi = string.IsNullOrWhiteSpace(dto.ProductNameVi)
+                ? ExcelParserService.GetVietnameseProductName(dto.ProductCode)
+                : dto.ProductNameVi;
+
+            double achieve = dto.PlannedQuantity > 0 ? (dto.ActualQuantity / dto.PlannedQuantity) : 0;
+            double uph = dto.WorkingHours > 0 ? (dto.ActualQuantity / dto.WorkingHours) : 0;
+            double eff = dto.WorkingHours > 0 ? (dto.ActualQuantity * dto.StandardWorkingTime) / (3600.0 * dto.WorkingHours) : 0;
+
+            var rec = new ProductionRecord
+            {
+                Date = dto.Date.Date,
+                ProductCode = dto.ProductCode.Trim(),
+                ProductNameVi = nameVi,
+                Shift = string.IsNullOrWhiteSpace(dto.Shift) ? "Ca Ngày" : dto.Shift.Trim(),
+                PlannedQuantity = dto.PlannedQuantity,
+                ActualQuantity = dto.ActualQuantity,
+                AchievementRate = achieve,
+                StandardWorkingTime = dto.StandardWorkingTime,
+                WorkingHours = dto.WorkingHours,
+                Efficiency = eff,
+                UPH = uph,
+                Status = dto.ActualQuantity > 0 ? "Completed" : "Scheduled",
+                Notes = dto.Notes
+            };
+
+            _context.ProductionRecords.Add(rec);
+
+            // Manpower
+            var man = new ManpowerRecord
+            {
+                Date = dto.Date.Date,
+                ProductCode = dto.ProductCode.Trim(),
+                PlannedManpower = dto.PlannedManpower,
+                ActualManpower = dto.ActualManpower,
+                MissingManpower = dto.PlannedManpower - dto.ActualManpower,
+                MissingRate = dto.PlannedManpower > 0 ? ((dto.PlannedManpower - dto.ActualManpower) / dto.PlannedManpower) : 0
+            };
+            _context.ManpowerRecords.Add(man);
+
+            // Quality
+            double totalNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
+                             dto.WireNG + dto.PCBANG + dto.THDNG + dto.SpeakerNG +
+                             dto.CoverNG + dto.NomaliNG + dto.BrokenWireNG;
+            double ngRate = dto.ActualQuantity > 0 ? (totalNG / dto.ActualQuantity) : 0;
+
+            var qual = new QualityRecord
+            {
+                Date = dto.Date.Date,
+                ProductCode = dto.ProductCode.Trim(),
+                FunctionalNG = dto.FunctionalNG,
+                AudioNG = dto.AudioNG,
+                ScratchNG = dto.ScratchNG,
+                EdgeChipNG = dto.EdgeChipNG,
+                WireNG = dto.WireNG,
+                PCBANG = dto.PCBANG,
+                THDNG = dto.THDNG,
+                SpeakerNG = dto.SpeakerNG,
+                CoverNG = dto.CoverNG,
+                NomaliNG = dto.NomaliNG,
+                BrokenWireNG = dto.BrokenWireNG,
+                TotalNG = totalNG,
+                NGRatio = ngRate
+            };
+            _context.QualityRecords.Add(qual);
+
+            // Downtime
+            if (dto.DowntimeMinutes > 0 || !string.IsNullOrWhiteSpace(dto.DowntimeReason))
+            {
+                var dt = new DowntimeRecord
+                {
+                    Date = dto.Date.Date,
+                    ProductCode = dto.ProductCode.Trim(),
+                    DowntimeMinutes = dto.DowntimeMinutes,
+                    DowntimeReason = string.IsNullOrWhiteSpace(dto.DowntimeReason) ? "Dừng điều chỉnh thiết bị" : dto.DowntimeReason.Trim(),
+                    ImpactDepartment = string.IsNullOrWhiteSpace(dto.ImpactDepartment) ? "Kỹ thuật / Thiết bị" : dto.ImpactDepartment.Trim()
+                };
+                _context.DowntimeRecords.Add(dt);
+            }
+
+            _context.SaveChanges();
+
+            dto.Id = rec.Id;
+            dto.ProductNameVi = nameVi;
+            dto.AchievementRate = achieve;
+            dto.UPH = uph;
+            dto.Efficiency = eff;
+            dto.TotalNG = totalNG;
+            dto.NGRate = ngRate;
+
+            return Ok(new { message = "Đã thêm bản ghi sản xuất thành công.", record = dto });
+        }
+
+        [HttpPut("record/{id}")]
+        public IActionResult UpdateProductionRecord(int id, [FromBody] ProductionRecordCrudDto dto)
+        {
+            var rec = _context.ProductionRecords.FirstOrDefault(p => p.Id == id);
+            if (rec == null) return NotFound(new { message = "Không tìm thấy bản ghi cần sửa." });
+
+            string nameVi = string.IsNullOrWhiteSpace(dto.ProductNameVi)
+                ? ExcelParserService.GetVietnameseProductName(dto.ProductCode)
+                : dto.ProductNameVi;
+
+            double achieve = dto.PlannedQuantity > 0 ? (dto.ActualQuantity / dto.PlannedQuantity) : 0;
+            double uph = dto.WorkingHours > 0 ? (dto.ActualQuantity / dto.WorkingHours) : 0;
+            double eff = dto.WorkingHours > 0 ? (dto.ActualQuantity * dto.StandardWorkingTime) / (3600.0 * dto.WorkingHours) : 0;
+
+            DateTime oldDate = rec.Date.Date;
+            string oldProd = rec.ProductCode;
+
+            rec.Date = dto.Date.Date;
+            rec.ProductCode = dto.ProductCode.Trim();
+            rec.ProductNameVi = nameVi;
+            rec.Shift = string.IsNullOrWhiteSpace(dto.Shift) ? "Ca Ngày" : dto.Shift.Trim();
+            rec.PlannedQuantity = dto.PlannedQuantity;
+            rec.ActualQuantity = dto.ActualQuantity;
+            rec.AchievementRate = achieve;
+            rec.StandardWorkingTime = dto.StandardWorkingTime;
+            rec.WorkingHours = dto.WorkingHours;
+            rec.Efficiency = eff;
+            rec.UPH = uph;
+            rec.Status = dto.ActualQuantity > 0 ? "Completed" : "Scheduled";
+            rec.Notes = dto.Notes;
+
+            // Sync Manpower
+            var man = _context.ManpowerRecords.FirstOrDefault(m => m.Date.Date == oldDate && m.ProductCode == oldProd);
+            if (man == null)
+            {
+                man = new ManpowerRecord { Date = rec.Date, ProductCode = rec.ProductCode };
+                _context.ManpowerRecords.Add(man);
+            }
+            man.Date = rec.Date;
+            man.ProductCode = rec.ProductCode;
+            man.PlannedManpower = dto.PlannedManpower;
+            man.ActualManpower = dto.ActualManpower;
+            man.MissingManpower = dto.PlannedManpower - dto.ActualManpower;
+            man.MissingRate = dto.PlannedManpower > 0 ? ((dto.PlannedManpower - dto.ActualManpower) / dto.PlannedManpower) : 0;
+
+            // Sync Quality
+            double totalNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
+                             dto.WireNG + dto.PCBANG + dto.THDNG + dto.SpeakerNG +
+                             dto.CoverNG + dto.NomaliNG + dto.BrokenWireNG;
+            double ngRate = dto.ActualQuantity > 0 ? (totalNG / dto.ActualQuantity) : 0;
+
+            var qual = _context.QualityRecords.FirstOrDefault(q => q.Date.Date == oldDate && q.ProductCode == oldProd);
+            if (qual == null)
+            {
+                qual = new QualityRecord { Date = rec.Date, ProductCode = rec.ProductCode };
+                _context.QualityRecords.Add(qual);
+            }
+            qual.Date = rec.Date;
+            qual.ProductCode = rec.ProductCode;
+            qual.FunctionalNG = dto.FunctionalNG;
+            qual.AudioNG = dto.AudioNG;
+            qual.ScratchNG = dto.ScratchNG;
+            qual.EdgeChipNG = dto.EdgeChipNG;
+            qual.WireNG = dto.WireNG;
+            qual.PCBANG = dto.PCBANG;
+            qual.THDNG = dto.THDNG;
+            qual.SpeakerNG = dto.SpeakerNG;
+            qual.CoverNG = dto.CoverNG;
+            qual.NomaliNG = dto.NomaliNG;
+            qual.BrokenWireNG = dto.BrokenWireNG;
+            qual.TotalNG = totalNG;
+            qual.NGRatio = ngRate;
+
+            // Sync Downtime
+            var dt = _context.DowntimeRecords.FirstOrDefault(d => d.Date.Date == oldDate && d.ProductCode == oldProd);
+            if (dto.DowntimeMinutes > 0 || !string.IsNullOrWhiteSpace(dto.DowntimeReason))
+            {
+                if (dt == null)
+                {
+                    dt = new DowntimeRecord { Date = rec.Date, ProductCode = rec.ProductCode };
+                    _context.DowntimeRecords.Add(dt);
+                }
+                dt.Date = rec.Date;
+                dt.ProductCode = rec.ProductCode;
+                dt.DowntimeMinutes = dto.DowntimeMinutes;
+                dt.DowntimeReason = string.IsNullOrWhiteSpace(dto.DowntimeReason) ? "Dừng điều chỉnh thiết bị" : dto.DowntimeReason.Trim();
+                dt.ImpactDepartment = string.IsNullOrWhiteSpace(dto.ImpactDepartment) ? "Kỹ thuật / Thiết bị" : dto.ImpactDepartment.Trim();
+            }
+            else if (dt != null)
+            {
+                _context.DowntimeRecords.Remove(dt);
+            }
+
+            _context.SaveChanges();
+
+            dto.Id = rec.Id;
+            dto.ProductNameVi = nameVi;
+            dto.AchievementRate = achieve;
+            dto.UPH = uph;
+            dto.Efficiency = eff;
+            dto.TotalNG = totalNG;
+            dto.NGRate = ngRate;
+
+            return Ok(new { message = "Đã cập nhật bản ghi sản xuất thành công.", record = dto });
+        }
+
+        [HttpDelete("record/{id}")]
+        public IActionResult DeleteProductionRecord(int id)
+        {
+            var rec = _context.ProductionRecords.FirstOrDefault(p => p.Id == id);
+            if (rec == null) return NotFound(new { message = "Không tìm thấy bản ghi cần xóa." });
+
+            DateTime date = rec.Date.Date;
+            string prod = rec.ProductCode;
+
+            _context.ProductionRecords.Remove(rec);
+
+            // If no other record for this date and product, clean up related records
+            bool hasOther = _context.ProductionRecords.Any(p => p.Id != id && p.Date.Date == date && p.ProductCode == prod);
+            if (!hasOther)
+            {
+                var mans = _context.ManpowerRecords.Where(m => m.Date.Date == date && m.ProductCode == prod).ToList();
+                _context.ManpowerRecords.RemoveRange(mans);
+
+                var quals = _context.QualityRecords.Where(q => q.Date.Date == date && q.ProductCode == prod).ToList();
+                _context.QualityRecords.RemoveRange(quals);
+
+                var dts = _context.DowntimeRecords.Where(d => d.Date.Date == date && d.ProductCode == prod).ToList();
+                _context.DowntimeRecords.RemoveRange(dts);
+            }
+
+            _context.SaveChanges();
+            return Ok(new { message = "Đã xóa bản ghi sản xuất thành công." });
+        }
+
+        // ==========================================
+        // FORM 2: INVENTORY AUDIT CRUD ENDPOINTS
+        // ==========================================
+
+        [HttpPost("inventory-record")]
+        public IActionResult CreateInventoryRecord([FromBody] InventoryAuditCrudDto dto)
+        {
+            if (dto == null) return BadRequest(new { message = "Dữ liệu không hợp lệ." });
+            if (string.IsNullOrWhiteSpace(dto.MaterialCode))
+                return BadRequest(new { message = "Vui lòng nhập mã liệu." });
+
+            string stage = string.IsNullOrWhiteSpace(dto.Stage) ? "LẮP RÁP D6" : dto.Stage.Trim();
+            string section = string.IsNullOrWhiteSpace(dto.Section) ? stage : dto.Section.Trim();
+
+            var item = new InventoryAuditRecord
+            {
+                Stage = stage,
+                Section = section,
+                MaterialCode = dto.MaterialCode.Trim(),
+                UsagePerUnit = dto.UsagePerUnit,
+                AuditRequired = dto.AuditRequired,
+                RawMaterialWarehouse = dto.RawMaterialWarehouse,
+                RawMaterialLine = dto.RawMaterialLine,
+                SemiFinishedGoods = dto.SemiFinishedGoods,
+                SemiFinishedGoods2 = dto.SemiFinishedGoods2,
+                RepairRoom = dto.RepairRoom,
+                FailureAnalysisFa = dto.FailureAnalysisFa,
+                FinishedGoods = dto.FinishedGoods,
+                Discrepancy = dto.Discrepancy,
+                NGQuantity = dto.NGQuantity
+            };
+
+            _context.InventoryAuditRecords.Add(item);
+            _context.SaveChanges();
+
+            dto.Id = item.Id;
+            return Ok(new { message = "Đã thêm mã kiểm kê vật tư thành công.", record = dto });
+        }
+
+        [HttpPut("inventory-record/{id}")]
+        public IActionResult UpdateInventoryRecord(int id, [FromBody] InventoryAuditCrudDto dto)
+        {
+            var item = _context.InventoryAuditRecords.FirstOrDefault(i => i.Id == id);
+            if (item == null) return NotFound(new { message = "Không tìm thấy mã kiểm kê cần sửa." });
+
+            item.Stage = string.IsNullOrWhiteSpace(dto.Stage) ? item.Stage : dto.Stage.Trim();
+            item.Section = string.IsNullOrWhiteSpace(dto.Section) ? item.Stage : dto.Section.Trim();
+            item.MaterialCode = string.IsNullOrWhiteSpace(dto.MaterialCode) ? item.MaterialCode : dto.MaterialCode.Trim();
+            item.UsagePerUnit = dto.UsagePerUnit;
+            item.AuditRequired = dto.AuditRequired;
+            item.RawMaterialWarehouse = dto.RawMaterialWarehouse;
+            item.RawMaterialLine = dto.RawMaterialLine;
+            item.SemiFinishedGoods = dto.SemiFinishedGoods;
+            item.SemiFinishedGoods2 = dto.SemiFinishedGoods2;
+            item.RepairRoom = dto.RepairRoom;
+            item.FailureAnalysisFa = dto.FailureAnalysisFa;
+            item.FinishedGoods = dto.FinishedGoods;
+            item.Discrepancy = dto.Discrepancy;
+            item.NGQuantity = dto.NGQuantity;
+
+            _context.SaveChanges();
+
+            dto.Id = item.Id;
+            return Ok(new { message = "Đã cập nhật mã kiểm kê vật tư thành công.", record = dto });
+        }
+
+        [HttpDelete("inventory-record/{id}")]
+        public IActionResult DeleteInventoryRecord(int id)
+        {
+            var item = _context.InventoryAuditRecords.FirstOrDefault(i => i.Id == id);
+            if (item == null) return NotFound(new { message = "Không tìm thấy mã kiểm kê cần xóa." });
+
+            _context.InventoryAuditRecords.Remove(item);
+            _context.SaveChanges();
+
+            return Ok(new { message = "Đã xóa mã kiểm kê thành công." });
+        }
     }
 }

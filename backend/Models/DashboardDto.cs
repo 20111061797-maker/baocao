@@ -231,4 +231,66 @@ namespace ProductionDashboard.Api.Models
         public string MinDate { get; set; } = string.Empty;
         public string MaxDate { get; set; } = string.Empty;
     }
+
+    public class ProductionRecordCrudDto
+    {
+        public int Id { get; set; }
+        public DateTime Date { get; set; }
+        public string ProductCode { get; set; } = string.Empty;
+        public string ProductNameVi { get; set; } = string.Empty;
+        public string Shift { get; set; } = "Ca Ngày";
+        public double PlannedQuantity { get; set; }
+        public double ActualQuantity { get; set; }
+        public double StandardWorkingTime { get; set; }
+        public double WorkingHours { get; set; }
+        public double AchievementRate { get; set; }
+        public double Efficiency { get; set; }
+        public double UPH { get; set; }
+        public string Status { get; set; } = "Completed";
+        public string? Notes { get; set; }
+
+        // Manpower
+        public double PlannedManpower { get; set; }
+        public double ActualManpower { get; set; }
+        public double MissingManpower { get; set; }
+
+        // Quality (11 defects)
+        public double FunctionalNG { get; set; }
+        public double AudioNG { get; set; }
+        public double ScratchNG { get; set; }
+        public double EdgeChipNG { get; set; }
+        public double WireNG { get; set; }
+        public double PCBANG { get; set; }
+        public double THDNG { get; set; }
+        public double SpeakerNG { get; set; }
+        public double CoverNG { get; set; }
+        public double NomaliNG { get; set; }
+        public double BrokenWireNG { get; set; }
+        public double TotalNG { get; set; }
+        public double NGRate { get; set; }
+
+        // Downtime
+        public double DowntimeMinutes { get; set; }
+        public string? DowntimeReason { get; set; }
+        public string? ImpactDepartment { get; set; }
+    }
+
+    public class InventoryAuditCrudDto
+    {
+        public int Id { get; set; }
+        public string Stage { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public string MaterialCode { get; set; } = string.Empty;
+        public double UsagePerUnit { get; set; }
+        public double AuditRequired { get; set; }
+        public double RawMaterialWarehouse { get; set; }
+        public double RawMaterialLine { get; set; }
+        public double SemiFinishedGoods { get; set; }
+        public double SemiFinishedGoods2 { get; set; }
+        public double RepairRoom { get; set; }
+        public double FailureAnalysisFa { get; set; }
+        public double FinishedGoods { get; set; }
+        public double Discrepancy { get; set; }
+        public double NGQuantity { get; set; }
+    }
 }

@@ -24,9 +24,10 @@ import {
 
 interface InventoryAuditModalProps {
   onClose: () => void;
+  onOpenCrud?: () => void;
 }
 
-export const InventoryAuditModal: React.FC<InventoryAuditModalProps> = ({ onClose }) => {
+export const InventoryAuditModal: React.FC<InventoryAuditModalProps> = ({ onClose, onOpenCrud }) => {
   const [data, setData] = useState<InventoryAuditResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedStage, setSelectedStage] = useState<string>('all');
@@ -284,6 +285,25 @@ export const InventoryAuditModal: React.FC<InventoryAuditModalProps> = ({ onClos
                 <RefreshCw size={13} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
                 <span>Làm mới</span>
               </button>
+
+              {onOpenCrud && (
+                <button
+                  className="btn-secondary"
+                  onClick={onOpenCrud}
+                  title="Nhập mới, chỉnh sửa hoặc xoá mã vật tư trực tiếp trong CSDL"
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.72rem',
+                    color: 'var(--accent-cyan)',
+                    borderColor: 'rgba(6, 182, 212, 0.4)',
+                    background: 'rgba(6, 182, 212, 0.1)',
+                    fontWeight: 600
+                  }}
+                >
+                  <Boxes size={14} />
+                  <span>+ Nhập/Sửa Mã Liệu</span>
+                </button>
+              )}
 
               <button
                 className="btn-secondary"

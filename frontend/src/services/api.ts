@@ -5,7 +5,9 @@ import {
   EightDReport,
   EvidenceFor8D,
   UserLayoutConfig,
-  InventoryAuditResponse
+  InventoryAuditResponse,
+  ProductionRecordCrud,
+  InventoryAuditItem
 } from '../types/dashboard';
 
 const RAW_API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://baocao-production.up.railway.app' : '');
@@ -150,6 +152,111 @@ export const api = {
       body: JSON.stringify(config),
     });
     if (!res.ok) throw new Error('Không thể lưu cấu hình layout.');
+    return res.json();
+  },
+
+  // ==========================================
+  // FORM 1: PRODUCTION RECORDS CRUD
+  // ==========================================
+
+  async getProductionCrudRecords(params?: {
+    dateFrom?: string;
+    dateTo?: string;
+    product?: string;
+    shift?: string;
+    search?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<{ total: number; page: number; pageSize: number; records: ProductionRecordCrud[] }> {
+    const query = new URLSearchParams();
+    if (params?.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params?.dateTo) query.append('dateTo', params.dateTo);
+    if (params?.product && params.product !== 'all') query.append('product', params.product);
+    if (params?.shift && params.shift !== 'all') query.append('shift', params.shift);
+    if (params?.search) query.append('search', params.search);
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.pageSize) query.append('pageSize', params.pageSize.toString());
+
+    const res = await fetch(`${API_BASE}/production/crud-records?${query.toString()}`);
+    if (!res.ok) throw new Error('Không thể tải danh sách bản ghi sản xuất.');
+    return res.json();
+  },
+
+  async createProductionRecord(data: Partial<ProductionRecordCrud>): Promise<{ message: string; record: ProductionRecordCrud }> {
+    const res = await fetch(`${API_BASE}/production/record`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi tạo bản ghi sản xuất.');
+    }
+    return res.json();
+  },
+
+  async updateProductionRecord(id: number, data: Partial<ProductionRecordCrud>): Promise<{ message: string; record: ProductionRecordCrud }> {
+    const res = await fetch(`${API_BASE}/production/record/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi cập nhật bản ghi sản xuất.');
+    }
+    return res.json();
+  },
+
+  async deleteProductionRecord(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/production/record/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi xóa bản ghi sản xuất.');
+    }
+    return res.json();
+  },
+
+  // ==========================================
+  // FORM 2: INVENTORY AUDIT CRUD
+  // ==========================================
+
+  async createInventoryRecord(data: Partial<InventoryAuditItem>): Promise<{ message: string; record: InventoryAuditItem }> {
+    const res = await fetch(`${API_BASE}/production/inventory-record`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi thêm mã kiểm kê.');
+    }
+    return res.json();
+  },
+
+  async updateInventoryRecord(id: number, data: Partial<InventoryAuditItem>): Promise<{ message: string; record: InventoryAuditItem }> {
+    const res = await fetch(`${API_BASE}/production/inventory-record/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi sửa mã kiểm kê.');
+    }
+    return res.json();
+  },
+
+  async deleteInventoryRecord(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${API_BASE}/production/inventory-record/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Lỗi khi xóa mã kiểm kê.');
+    }
     return res.json();
   }
 };

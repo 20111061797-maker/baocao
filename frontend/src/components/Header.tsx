@@ -12,7 +12,9 @@ import {
   ShieldCheck,
   UploadCloud,
   FileText,
-  Boxes
+  Boxes,
+  PlusCircle,
+  Database
 } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { api } from '../services/api';
@@ -30,6 +32,8 @@ interface HeaderProps {
   onOpen8D: () => void;
   onOpenAudit: () => void;
   onOpenLayout: () => void;
+  onOpenProductionCrud: () => void;
+  onOpenInventoryCrud: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,6 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpen8D,
   onOpenAudit,
   onOpenLayout,
+  onOpenProductionCrud,
+  onOpenInventoryCrud,
 }) => {
   const t = translations[lang];
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -152,6 +158,49 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Desktop View Tools (> 768px) */}
       <div className="header-tools-desktop">
+        <button
+          className="btn-primary"
+          onClick={onOpenProductionCrud}
+          title="Nhập, sửa, xoá dữ liệu sản xuất trực tiếp vào CSDL"
+          style={{
+            fontSize: '0.8rem',
+            background: 'linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.45rem 0.8rem',
+            borderRadius: '8px',
+            border: 'none',
+            fontWeight: 600,
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-glow-cyan)'
+          }}
+        >
+          <PlusCircle size={15} />
+          <span>Nhập/Sửa Sản Xuất</span>
+        </button>
+
+        <button
+          className="btn-secondary"
+          onClick={onOpenInventoryCrud}
+          title="Nhập, sửa, xoá bảng kiểm kê vật tư D6"
+          style={{
+            fontSize: '0.8rem',
+            borderColor: 'rgba(6, 182, 212, 0.4)',
+            color: 'var(--accent-cyan)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            padding: '0.45rem 0.8rem',
+            borderRadius: '8px',
+            cursor: 'pointer'
+          }}
+        >
+          <Database size={15} />
+          <span>Quản Lý Vật Tư D6</span>
+        </button>
+
         <button
           className="btn-secondary"
           onClick={onOpenAudit}
@@ -265,6 +314,24 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Mobile Horizontal Scrollable Tools Strip (< 768px) */}
       <div className="header-tools-mobile">
+        <button
+          className="header-chip-btn"
+          onClick={onOpenProductionCrud}
+          style={{ borderColor: 'var(--accent-cyan)', background: 'rgba(6, 182, 212, 0.15)', color: 'var(--accent-cyan)', fontWeight: 700 }}
+        >
+          <PlusCircle size={14} color="var(--accent-cyan)" />
+          <span>+ Nhập SX</span>
+        </button>
+
+        <button
+          className="header-chip-btn"
+          onClick={onOpenInventoryCrud}
+          style={{ borderColor: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.12)', color: 'var(--accent-blue)', fontWeight: 700 }}
+        >
+          <Database size={14} color="var(--accent-blue)" />
+          <span>+ Vật Tư D6</span>
+        </button>
+
         <button
           className="header-chip-btn"
           onClick={onOpenAudit}

@@ -307,3 +307,46 @@ export interface InventoryAuditResponse {
   sections: string[];
   items: InventoryAuditItem[];
 }
+
+export interface ProductionRecordCrud {
+  id: number;
+  date: string;
+  productCode: string;
+  productNameVi: string;
+  shift: string;
+  plannedQuantity: number;
+  actualQuantity: number;
+  standardWorkingTime: number;
+  workingHours: number;
+  achievementRate: number;
+  efficiency: number;
+  uph: number;
+  status: string;
+  notes?: string;
+
+  // Manpower
+  plannedManpower: number;
+  actualManpower: number;
+  missingManpower: number;
+
+  // Quality (11 defects)
+  functionalNG: number;
+  audioNG: number;
+  scratchNG: number;
+  edgeChipNG: number;
+  wireNG: number;
+  pcbaNG: number;
+  thdNG: number;
+  speakerNG: number;
+  coverNG: number;
+  nomaliNG: number;
+  brokenWireNG: number;
+  totalNG: number;
+  ngRate: number;
+
+  // Downtime
+  downtimeMinutes: number;
+  downtimeReason?: string;
+  impactDepartment?: string;
+}
+
