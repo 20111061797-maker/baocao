@@ -278,15 +278,25 @@ namespace ProductionDashboard.Api.Services
             var matrix = BuildProductMatrix(prodRecords, qualRecords, dtRecords);
 
             // Metadata
-            var availableProducts = _context.ProductionRecords
+            var defaultProducts = new List<string> { "喇叭", "麦克风", "控制盒", "头戴", "组装", "包装" };
+            var dbProducts = _context.ProductionRecords
                 .Select(p => p.ProductCode)
+                .Where(p => !string.IsNullOrWhiteSpace(p))
                 .Distinct()
+                .ToList();
+            var availableProducts = defaultProducts
+                .Union(dbProducts)
                 .OrderBy(p => p)
                 .ToList();
 
-            var availableShifts = _context.ProductionRecords
+            var defaultShifts = new List<string> { "Ca Ngày", "Ca Đêm" };
+            var dbShifts = _context.ProductionRecords
                 .Select(p => p.Shift)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Distinct()
+                .ToList();
+            var availableShifts = defaultShifts
+                .Union(dbShifts)
                 .OrderBy(s => s)
                 .ToList();
 

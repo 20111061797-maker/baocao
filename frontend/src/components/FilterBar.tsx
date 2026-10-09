@@ -33,6 +33,23 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     { key: 'all', label: t.presetAll },
   ];
 
+  const shifts = React.useMemo(() => {
+    const set = new Set<string>(['Ca Ngày', 'Ca Đêm']);
+    (availableShifts || []).forEach((s) => {
+      if (s) set.add(s);
+    });
+    return Array.from(set);
+  }, [availableShifts]);
+
+  const products = React.useMemo(() => {
+    const defaultList = ['喇叭', '麦克风', '控制盒', '头戴', '组装', '包装'];
+    const set = new Set<string>(defaultList);
+    (availableProducts || []).forEach((p) => {
+      if (p) set.add(p);
+    });
+    return Array.from(set);
+  }, [availableProducts]);
+
   const handlePresetSelect = (presetKey: string) => {
     onChange({
       ...filter,
@@ -121,7 +138,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               style={{ width: '100%', minWidth: 0, fontSize: '0.75rem', padding: '0.35rem 0.4rem' }}
             >
               <option value="all">{t.allProducts}</option>
-              {availableProducts.map((p) => (
+              {products.map((p) => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
@@ -136,7 +153,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               style={{ width: '100%', minWidth: 0, fontSize: '0.75rem', padding: '0.35rem 0.4rem' }}
             >
               <option value="all">{t.allShifts}</option>
-              {availableShifts.map((s) => (
+              {shifts.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
