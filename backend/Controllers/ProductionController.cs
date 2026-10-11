@@ -340,7 +340,10 @@ namespace ProductionDashboard.Api.Controllers
 
                 _context.SaveChanges();
             }
-            return Ok(new { message = $"Đã dọn dẹp {count} bản ghi trống.", removedCount = count });
+
+            DataSeeder.EnsureRecentRecords(_context);
+
+            return Ok(new { message = $"Đã dọn dẹp {count} bản ghi trống và đồng bộ dữ liệu đến hôm nay.", removedCount = count });
         }
 
         [HttpGet("crud-records")]

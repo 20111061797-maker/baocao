@@ -59,6 +59,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         DataSeeder.Initialize(context, parser, workspaceRoot);
+        DataSeeder.EnsureRecentRecords(context);
         Console.WriteLine($"[INFO] Database initialized and seeded successfully on port {port}.");
 
         // Prune zero-quantity future phantom records

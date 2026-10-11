@@ -16,6 +16,7 @@ namespace ProductionDashboard.Api.Data
 
             if (context.ProductionRecords.Any() && context.InventoryAuditRecords.Any())
             {
+                EnsureRecentRecords(context);
                 return; // Already initialized
             }
 
@@ -141,8 +142,12 @@ namespace ProductionDashboard.Api.Data
             }
             context.SaveChanges();
 
-            // 2. Enrich historical dates (2026-10-01 to 2026-10-08) for all 6 core products
-            // to support rich time-series filtering (Today, Last 7 Days, This Month, etc.)
+            // 2. Enrich historical dates up to current date for all 6 core products
+            EnsureRecentRecords(context);
+        }
+
+        public static void EnsureRecentRecords(AppDbContext context)
+        {
             var productList = new[]
             {
                 new { Code = "喇叭", Name = "Loa SPK", PlanBase = 1300.0, TCGC = 173.0, HoursBase = 100.0, ManBase = 18.0 },
@@ -154,7 +159,8 @@ namespace ProductionDashboard.Api.Data
             };
 
             var historicalDates = new List<DateTime>();
-            DateTime today = new DateTime(2026, 10, 8);
+            // Vietnam local date (e.g. 2026-10-11)
+            DateTime today = DateTime.UtcNow.AddHours(7).Date;
             for (int i = 14; i >= 0; i--)
             {
                 historicalDates.Add(today.AddDays(-i));
@@ -173,14 +179,16 @@ namespace ProductionDashboard.Api.Data
                 "Đổi model & Vệ sinh chuyền 5S / Line changeover & 5S cleaning"
             };
 
+            bool hasChanges = false;
             foreach (var dt in historicalDates)
             {
-                // Check if already exists for this date
-                if (context.ProductionRecords.Any(p => p.Date.Date == dt.Date))
+                // Check if already exists with actual production data for this date
+                if (context.ProductionRecords.Any(p => p.Date.Date == dt.Date && (p.ActualQuantity > 0 || p.PlannedQuantity > 0)))
                 {
                     continue;
                 }
 
+                hasChanges = true;
                 foreach (var p in productList)
                 {
                     double variation = 0.9 + (rand.NextDouble() * 0.22); // 90% - 112%
@@ -272,6 +280,11 @@ namespace ProductionDashboard.Api.Data
                         });
                     }
                 }
+            }
+
+            if (hasChanges)
+            {
+                context.SaveChanges();
             }
 
             // Ensure baseline quality records exist for 2026-07-30 if not already populated
