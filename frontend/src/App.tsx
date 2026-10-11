@@ -202,6 +202,8 @@ export const App: React.FC = () => {
         onReset={handleResetFilter}
         availableProducts={dashboardData?.availableProducts || []}
         availableShifts={dashboardData?.availableShifts || []}
+        activeDateFrom={dashboardData?.minDate}
+        activeDateTo={dashboardData?.maxDate}
       />
 
       {/* 3. Main Dashboard Body */}

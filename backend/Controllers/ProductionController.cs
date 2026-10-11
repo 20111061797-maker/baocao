@@ -315,6 +315,34 @@ namespace ProductionDashboard.Api.Controllers
         // FORM 1: PRODUCTION RECORDS CRUD ENDPOINTS
         // ==========================================
 
+        [HttpPost("cleanup-empty")]
+        public IActionResult CleanupEmptyRecords()
+        {
+            var phantoms = _context.ProductionRecords
+                .Where(p => p.ActualQuantity == 0 && p.PlannedQuantity == 0 && p.WorkingHours == 0)
+                .ToList();
+            int count = phantoms.Count;
+            if (count > 0)
+            {
+                var pDates = phantoms.Select(p => p.Date.Date).Distinct().ToList();
+                var pCodes = phantoms.Select(p => p.ProductCode).Distinct().ToList();
+                _context.ProductionRecords.RemoveRange(phantoms);
+
+                var pMans = _context.ManpowerRecords
+                    .Where(m => pDates.Contains(m.Date.Date) && pCodes.Contains(m.ProductCode) && m.PlannedManpower == 0 && m.ActualManpower == 0)
+                    .ToList();
+                if (pMans.Any()) _context.ManpowerRecords.RemoveRange(pMans);
+
+                var pQuals = _context.QualityRecords
+                    .Where(q => pDates.Contains(q.Date.Date) && pCodes.Contains(q.ProductCode) && q.TotalNG == 0)
+                    .ToList();
+                if (pQuals.Any()) _context.QualityRecords.RemoveRange(pQuals);
+
+                _context.SaveChanges();
+            }
+            return Ok(new { message = $"Đã dọn dẹp {count} bản ghi trống.", removedCount = count });
+        }
+
         [HttpGet("crud-records")]
         public IActionResult GetCrudRecords(
             [FromQuery] DateTime? dateFrom,

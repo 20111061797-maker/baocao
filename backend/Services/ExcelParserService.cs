@@ -107,6 +107,12 @@ namespace ProductionDashboard.Api.Services
                 double standardTime = SafeGetDouble(row.Cell(8));
                 double workingHours = SafeGetDouble(row.Cell(9));
 
+                // Skip empty placeholder rows from future Excel schedule templates
+                if (planQty == 0 && actualQty == 0 && workingHours == 0 && plannedManpower == 0 && actualManpower == 0)
+                {
+                    continue;
+                }
+
                 // Formulas
                 double efficiency = SafeGetDouble(row.Cell(10));
                 if (efficiency == 0 && workingHours > 0)

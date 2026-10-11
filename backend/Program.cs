@@ -60,6 +60,30 @@ using (var scope = app.Services.CreateScope())
     {
         DataSeeder.Initialize(context, parser, workspaceRoot);
         Console.WriteLine($"[INFO] Database initialized and seeded successfully on port {port}.");
+
+        // Prune zero-quantity future phantom records
+        var phantoms = context.ProductionRecords
+            .Where(p => p.ActualQuantity == 0 && p.PlannedQuantity == 0 && p.WorkingHours == 0)
+            .ToList();
+        if (phantoms.Any())
+        {
+            var pDates = phantoms.Select(p => p.Date.Date).Distinct().ToList();
+            var pCodes = phantoms.Select(p => p.ProductCode).Distinct().ToList();
+            context.ProductionRecords.RemoveRange(phantoms);
+
+            var pMans = context.ManpowerRecords
+                .Where(m => pDates.Contains(m.Date.Date) && pCodes.Contains(m.ProductCode) && m.PlannedManpower == 0 && m.ActualManpower == 0)
+                .ToList();
+            if (pMans.Any()) context.ManpowerRecords.RemoveRange(pMans);
+
+            var pQuals = context.QualityRecords
+                .Where(q => pDates.Contains(q.Date.Date) && pCodes.Contains(q.ProductCode) && q.TotalNG == 0)
+                .ToList();
+            if (pQuals.Any()) context.QualityRecords.RemoveRange(pQuals);
+
+            context.SaveChanges();
+            Console.WriteLine($"[INFO] Cleaned up {phantoms.Count} zero-quantity future placeholder records.");
+        }
     }
     catch (Exception ex)
     {

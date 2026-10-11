@@ -18,9 +18,20 @@ namespace ProductionDashboard.Api.Services
 
         public (DateTime fromDate, DateTime toDate) ResolveDateRange(DashboardFilterRequest filter)
         {
-            DateTime maxDateInDb = _context.ProductionRecords.Any()
-                ? _context.ProductionRecords.Max(p => p.Date).Date
-                : new DateTime(2026, 10, 8);
+            var activeRecords = _context.ProductionRecords
+                .Where(p => p.ActualQuantity > 0 || p.PlannedQuantity > 0 || p.WorkingHours > 0);
+
+            DateTime maxDateInDb = activeRecords.Any()
+                ? activeRecords.Max(p => p.Date).Date
+                : (_context.ProductionRecords.Any()
+                    ? _context.ProductionRecords.Max(p => p.Date).Date
+                    : DateTime.Today);
+
+            DateTime minDateInDb = activeRecords.Any()
+                ? activeRecords.Min(p => p.Date).Date
+                : (_context.ProductionRecords.Any()
+                    ? _context.ProductionRecords.Min(p => p.Date).Date
+                    : maxDateInDb.AddDays(-30));
 
             if (!string.IsNullOrWhiteSpace(filter.Preset))
             {
@@ -32,16 +43,23 @@ namespace ProductionDashboard.Api.Services
                         return (maxDateInDb.AddDays(-1), maxDateInDb.AddDays(-1));
                     case "this_week":
                         int diff = (7 + (maxDateInDb.DayOfWeek - DayOfWeek.Monday)) % 7;
-                        return (maxDateInDb.AddDays(-diff), maxDateInDb);
+                        DateTime startWeek = maxDateInDb.AddDays(-diff);
+                        if (startWeek < minDateInDb) startWeek = minDateInDb;
+                        return (startWeek, maxDateInDb);
                     case "this_month":
-                        return (new DateTime(maxDateInDb.Year, maxDateInDb.Month, 1), maxDateInDb);
+                        DateTime startMonth = new DateTime(maxDateInDb.Year, maxDateInDb.Month, 1);
+                        if (startMonth < minDateInDb) startMonth = minDateInDb;
+                        return (startMonth, maxDateInDb);
                     case "last_7_days":
-                        return (maxDateInDb.AddDays(-6), maxDateInDb);
+                        DateTime start7 = maxDateInDb.AddDays(-6);
+                        if (start7 < minDateInDb) start7 = minDateInDb;
+                        return (start7, maxDateInDb);
                     case "last_30_days":
-                        return (maxDateInDb.AddDays(-29), maxDateInDb);
+                        DateTime start30 = maxDateInDb.AddDays(-29);
+                        if (start30 < minDateInDb) start30 = minDateInDb;
+                        return (start30, maxDateInDb);
                     case "all":
-                        DateTime minDate = _context.ProductionRecords.Any() ? _context.ProductionRecords.Min(p => p.Date).Date : maxDateInDb.AddDays(-30);
-                        return (minDate, maxDateInDb);
+                        return (minDateInDb, maxDateInDb);
                 }
             }
 
@@ -300,8 +318,8 @@ namespace ProductionDashboard.Api.Services
                 .OrderBy(s => s)
                 .ToList();
 
-            string minDateStr = _context.ProductionRecords.Any() ? _context.ProductionRecords.Min(p => p.Date).ToString("yyyy-MM-dd") : fromDate.ToString("yyyy-MM-dd");
-            string maxDateStr = _context.ProductionRecords.Any() ? _context.ProductionRecords.Max(p => p.Date).ToString("yyyy-MM-dd") : toDate.ToString("yyyy-MM-dd");
+            string minDateStr = fromDate.ToString("yyyy-MM-dd");
+            string maxDateStr = toDate.ToString("yyyy-MM-dd");
 
             return new FullDashboardResponse
             {

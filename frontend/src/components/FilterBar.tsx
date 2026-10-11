@@ -11,6 +11,8 @@ interface FilterBarProps {
   onReset: () => void;
   availableProducts: string[];
   availableShifts: string[];
+  activeDateFrom?: string;
+  activeDateTo?: string;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -21,6 +23,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onReset,
   availableProducts,
   availableShifts,
+  activeDateFrom,
+  activeDateTo,
 }) => {
   const t = translations[lang];
 
@@ -99,6 +103,25 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             </button>
           );
         })}
+
+        {activeDateFrom && activeDateTo && (
+          <span style={{
+            fontSize: '0.73rem',
+            fontWeight: 600,
+            color: 'var(--accent-cyan)',
+            padding: '0.25rem 0.6rem',
+            borderRadius: '6px',
+            backgroundColor: 'rgba(6, 182, 212, 0.08)',
+            border: '1px solid rgba(6, 182, 212, 0.25)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.3rem',
+            whiteSpace: 'nowrap'
+          }}>
+            <Calendar size={12} color="var(--accent-cyan)" />
+            {activeDateFrom} ~ {activeDateTo}
+          </span>
+        )}
       </div>
 
       {/* Selectors and custom date range */}
@@ -110,7 +133,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <input
               type="date"
               className="select-custom"
-              value={filter.dateFrom || ''}
+              value={filter.dateFrom || (filter.preset ? activeDateFrom : '') || ''}
               onChange={(e) => onChange({ ...filter, preset: undefined, dateFrom: e.target.value })}
               style={{ fontSize: '0.75rem', padding: '0.35rem 0.4rem', width: '100%', minWidth: 0 }}
             />
@@ -120,7 +143,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <input
               type="date"
               className="select-custom"
-              value={filter.dateTo || ''}
+              value={filter.dateTo || (filter.preset ? activeDateTo : '') || ''}
               onChange={(e) => onChange({ ...filter, preset: undefined, dateTo: e.target.value })}
               style={{ fontSize: '0.75rem', padding: '0.35rem 0.4rem', width: '100%', minWidth: 0 }}
             />
