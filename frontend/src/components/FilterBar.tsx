@@ -51,6 +51,13 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     (availableProducts || []).forEach((p) => {
       if (p) set.add(p);
     });
+    try {
+      const saved = localStorage.getItem('mes_product_presets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        Object.keys(parsed).forEach((k) => set.add(k));
+      }
+    } catch {}
     return Array.from(set);
   }, [availableProducts]);
 

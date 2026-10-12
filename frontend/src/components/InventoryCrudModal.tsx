@@ -56,6 +56,14 @@ const INITIAL_FORM: InventoryAuditItem = {
 
 export const InventoryCrudModal: React.FC<InventoryCrudModalProps> = ({ onClose, onSuccess, initialStage }) => {
   const [activeTab, setActiveTab] = useState<'table' | 'form'>('table');
+  const [isCustomStage, setIsCustomStage] = useState<boolean>(false);
+  const [customStages, setCustomStages] = useState<Array<{ key: string; label: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('mes_inventory_stages');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return STAGES;
+  });
   const [formData, setFormData] = useState<InventoryAuditItem>({
     ...INITIAL_FORM,
     stage: initialStage || 'LẮP RÁP D6',
@@ -152,6 +160,14 @@ export const InventoryCrudModal: React.FC<InventoryCrudModalProps> = ({ onClose,
       } else {
         await api.createInventoryRecord(payload);
         setFeedback({ type: 'success', text: `Đã lưu mã liệu mới "${formData.materialCode}" vào Database!` });
+      }
+
+      if (formData.stage && !customStages.some(s => s.key === formData.stage)) {
+        const nextStages = [...customStages, { key: formData.stage, label: `${formData.stage} 🏷️` }];
+        setCustomStages(nextStages);
+        try {
+          localStorage.setItem('mes_inventory_stages', JSON.stringify(nextStages));
+        } catch {}
       }
 
       onSuccess();
@@ -402,20 +418,50 @@ export const InventoryCrudModal: React.FC<InventoryCrudModalProps> = ({ onClose,
 
               {/* Visual Stage Selector */}
               <div style={{ marginBottom: '1rem' }}>
-                <label className="form-label" style={{ marginBottom: '6px' }}>Chọn công đoạn kiểm kê</label>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {STAGES.map((s) => (
-                    <button
-                      key={s.key}
-                      type="button"
-                      className={`shift-pill-btn ${formData.stage === s.key ? 'active' : ''}`}
-                      onClick={() => setFormData({ ...formData, stage: s.key })}
-                      style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Công đoạn kiểm kê (Stage)</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomStage(!isCustomStage)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--accent-cyan)',
+                      fontSize: '0.74rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {isCustomStage ? '← Chọn công đoạn có sẵn' : '✏️ Tự nhập công đoạn khác...'}
+                  </button>
                 </div>
+
+                {isCustomStage ? (
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Nhập tên công đoạn (VD: HÀN DÂY D6, SMT MAIN, KIỂM HÀNG TEST...)"
+                    value={formData.stage}
+                    onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
+                    required
+                    autoFocus
+                  />
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {customStages.map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        className={`shift-pill-btn ${formData.stage === s.key ? 'active' : ''}`}
+                        onClick={() => setFormData({ ...formData, stage: s.key })}
+                        style={{ padding: '8px 16px', fontSize: '0.8rem' }}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>

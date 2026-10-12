@@ -42,7 +42,13 @@ interface ProductionCrudModalProps {
   initialContext?: ProductionCrudContext;
 }
 
-const PRODUCT_PRESETS: { [key: string]: { nameVi: string; tcgc: number; manBase: number } } = {
+export interface ProductStagePreset {
+  nameVi: string;
+  tcgc: number;
+  manBase: number;
+}
+
+export const DEFAULT_PRODUCT_PRESETS: Record<string, ProductStagePreset> = {
   '喇叭': { nameVi: 'Loa SPK', tcgc: 173, manBase: 18 },
   '麦克风': { nameVi: 'Microphone (MIC)', tcgc: 367, manBase: 24 },
   '控制盒': { nameVi: 'Hộp điều khiển (Control Box)', tcgc: 950, manBase: 35 },
@@ -124,6 +130,40 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
   const [formData, setFormData] = useState<ProductionRecordCrud>(INITIAL_FORM);
   const [isEditing, setIsEditing] = useState<boolean>(false);
 
+  // Dynamic Products & Stages Catalog State
+  const [productPresets, setProductPresets] = useState<Record<string, ProductStagePreset>>(() => {
+    try {
+      const saved = localStorage.getItem('mes_product_presets');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_PRODUCT_PRESETS, ...parsed };
+      }
+    } catch {}
+    return DEFAULT_PRODUCT_PRESETS;
+  });
+
+  const updateProductPresets = (newPresets: Record<string, ProductStagePreset>) => {
+    setProductPresets(newPresets);
+    try {
+      localStorage.setItem('mes_product_presets', JSON.stringify(newPresets));
+    } catch {}
+  };
+
+  const [isCustomProduct, setIsCustomProduct] = useState<boolean>(false);
+  const [showProductManager, setShowProductManager] = useState<boolean>(false);
+  const [managerForm, setManagerForm] = useState<{
+    originalCode?: string;
+    code: string;
+    nameVi: string;
+    tcgc: number;
+    manBase: number;
+  }>({
+    code: '',
+    nameVi: '',
+    tcgc: 300,
+    manBase: 20,
+  });
+
   // Shift state
   const [isCustomShift, setIsCustomShift] = useState<boolean>(false);
 
@@ -162,12 +202,12 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
           .catch(() => {});
       } else {
         const pCode = initialContext.product || '组装';
-        const preset = PRODUCT_PRESETS[pCode];
+        const preset = productPresets[pCode];
         setFormData((prev) => ({
           ...prev,
           date: initialContext.date || new Date().toISOString().slice(0, 10),
           productCode: pCode,
-          productNameVi: preset ? preset.nameVi : pCode,
+          productNameVi: preset ? preset.nameVi : (initialContext.product || pCode),
           standardWorkingTime: preset ? preset.tcgc : prev.standardWorkingTime,
           plannedManpower: preset ? preset.manBase : prev.plannedManpower,
           actualManpower: preset ? preset.manBase : prev.actualManpower,
@@ -235,15 +275,96 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
   }, [currentPage, filterProduct, filterShift, searchTerm]);
 
   const handleProductChange = (code: string) => {
-    const preset = PRODUCT_PRESETS[code];
+    const preset = productPresets[code];
     setFormData((prev) => ({
       ...prev,
       productCode: code,
-      productNameVi: preset ? preset.nameVi : code,
+      productNameVi: preset ? preset.nameVi : (prev.productNameVi || code),
       standardWorkingTime: preset ? preset.tcgc : prev.standardWorkingTime,
       plannedManpower: preset ? preset.manBase : prev.plannedManpower,
       actualManpower: preset ? preset.manBase : prev.actualManpower,
     }));
+  };
+
+  const handleOpenAddProduct = () => {
+    setManagerForm({
+      originalCode: undefined,
+      code: '',
+      nameVi: '',
+      tcgc: 300,
+      manBase: 20,
+    });
+    setShowProductManager(true);
+  };
+
+  const handleOpenEditProduct = (code: string) => {
+    const cur = productPresets[code] || { nameVi: code, tcgc: 300, manBase: 20 };
+    setManagerForm({
+      originalCode: code,
+      code: code,
+      nameVi: cur.nameVi,
+      tcgc: cur.tcgc,
+      manBase: cur.manBase,
+    });
+    setShowProductManager(true);
+  };
+
+  const handleSaveProductManager = (e: React.FormEvent) => {
+    e.preventDefault();
+    const c = managerForm.code.trim();
+    if (!c) return;
+
+    const newPreset: ProductStagePreset = {
+      nameVi: managerForm.nameVi.trim() || c,
+      tcgc: Number(managerForm.tcgc) || 200,
+      manBase: Number(managerForm.manBase) || 15,
+    };
+
+    const next = { ...productPresets };
+    if (managerForm.originalCode && managerForm.originalCode !== c) {
+      delete next[managerForm.originalCode];
+    }
+    next[c] = newPreset;
+    updateProductPresets(next);
+
+    if (formData.productCode === managerForm.originalCode || formData.productCode === c) {
+      setFormData((prev) => ({
+        ...prev,
+        productCode: c,
+        productNameVi: newPreset.nameVi,
+        standardWorkingTime: newPreset.tcgc,
+        plannedManpower: newPreset.manBase,
+      }));
+    }
+
+    setManagerForm({
+      originalCode: undefined,
+      code: '',
+      nameVi: '',
+      tcgc: 300,
+      manBase: 20,
+    });
+  };
+
+  const handleDeleteProductPreset = (code: string) => {
+    if (!window.confirm(`Xác nhận xóa sản phẩm / công đoạn "${code}" khỏi danh mục?`)) {
+      return;
+    }
+    const next = { ...productPresets };
+    delete next[code];
+    updateProductPresets(next);
+
+    if (formData.productCode === code) {
+      const firstRemaining = Object.keys(next)[0] || '组装';
+      handleProductChange(firstRemaining);
+    }
+  };
+
+  const handleResetProductPresets = () => {
+    if (window.confirm('Khôi phục danh mục về các sản phẩm & công đoạn mặc định ban đầu?')) {
+      updateProductPresets(DEFAULT_PRODUCT_PRESETS);
+      handleProductChange('组装');
+    }
   };
 
   const handleAddCustomDefect = () => {
@@ -296,6 +417,19 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
       } else {
         await api.createProductionRecord(payload);
         setFeedback({ type: 'success', text: 'Đã lưu bản ghi sản xuất mới vào cơ sở dữ liệu!' });
+      }
+
+      // Auto-register new product if user entered a custom code
+      if (formData.productCode && !productPresets[formData.productCode]) {
+        const next = {
+          ...productPresets,
+          [formData.productCode]: {
+            nameVi: formData.productNameVi || formData.productCode,
+            tcgc: Number(formData.standardWorkingTime) || 200,
+            manBase: Number(formData.plannedManpower) || 15,
+          },
+        };
+        updateProductPresets(next);
       }
 
       onSuccess();
@@ -591,20 +725,153 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                   />
                 </div>
 
-                {/* Sản phẩm */}
-                <div className="form-field-group">
-                  <label className="form-label">Sản phẩm / Công đoạn</label>
-                  <select
-                    className="form-input"
-                    value={formData.productCode}
-                    onChange={(e) => handleProductChange(e.target.value)}
-                  >
-                    {Object.keys(PRODUCT_PRESETS).map((code) => (
-                      <option key={code} value={code}>
-                        {code} - {PRODUCT_PRESETS[code].nameVi}
-                      </option>
-                    ))}
-                  </select>
+                {/* Sản phẩm & Công đoạn */}
+                <div className="form-field-group" style={{ gridColumn: 'span 2' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Sản phẩm & Công đoạn sản xuất</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomProduct(!isCustomProduct)}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--accent-cyan)',
+                          fontSize: '0.74rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        {isCustomProduct ? '← Chọn từ danh mục' : '✏️ Tự gõ mã khác'}
+                      </button>
+                      <span style={{ color: 'var(--border-subtle)', fontSize: '0.7rem' }}>|</span>
+                      <button
+                        type="button"
+                        onClick={handleOpenAddProduct}
+                        style={{
+                          background: 'rgba(16, 185, 129, 0.12)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)',
+                          borderRadius: '4px',
+                          color: '#10b981',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title="Thêm sản phẩm hoặc công đoạn mới vào danh mục"
+                      >
+                        <Plus size={11} />
+                        <span>Thêm SP/Công đoạn</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowProductManager(true)}
+                        style={{
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
+                          borderRadius: '4px',
+                          color: '#f59e0b',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '2px 6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title="Quản lý toàn bộ danh mục sản phẩm & công đoạn"
+                      >
+                        <Sliders size={11} />
+                        <span>Quản lý danh mục</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {isCustomProduct ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                      <div>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Mã sản phẩm / công đoạn (VD: SMT, DÁN KEO, TEST...)"
+                          value={formData.productCode}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setFormData((prev) => ({
+                              ...prev,
+                              productCode: val,
+                              productNameVi: prev.productNameVi || val,
+                            }));
+                          }}
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Tên tiếng Việt (VD: Hàn dán SMT, Dán keo nắp...)"
+                          value={formData.productNameVi}
+                          onChange={(e) => setFormData({ ...formData, productNameVi: e.target.value })}
+                          required
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '0.6rem' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <select
+                          className="form-input"
+                          value={formData.productCode}
+                          onChange={(e) => handleProductChange(e.target.value)}
+                          style={{ flex: 1 }}
+                        >
+                          {Object.keys(productPresets).map((code) => (
+                            <option key={code} value={code}>
+                              {code} - {productPresets[code]?.nameVi || code}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditProduct(formData.productCode)}
+                          style={{
+                            padding: '0 8px',
+                            borderRadius: '8px',
+                            background: 'rgba(56, 189, 248, 0.12)',
+                            border: '1px solid rgba(56, 189, 248, 0.35)',
+                            color: '#38bdf8',
+                            fontSize: '0.74rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                          }}
+                          title="Sửa tên, TCGC và nhân lực của công đoạn này"
+                        >
+                          <Edit2 size={12} />
+                          <span>Sửa</span>
+                        </button>
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Tên tiếng Việt hiển thị..."
+                          value={formData.productNameVi}
+                          onChange={(e) => setFormData({ ...formData, productNameVi: e.target.value })}
+                          title="Tên tiếng Việt của công đoạn (có thể chỉnh sửa trực tiếp)"
+                          required
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Ca làm việc */}
@@ -1093,9 +1360,9 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                 onChange={(e) => setFilterProduct(e.target.value)}
               >
                 <option value="all">Tất cả sản phẩm</option>
-                {Object.keys(PRODUCT_PRESETS).map((code) => (
+                {Object.keys(productPresets).map((code) => (
                   <option key={code} value={code}>
-                    {PRODUCT_PRESETS[code].nameVi}
+                    {code} - {productPresets[code]?.nameVi || code}
                   </option>
                 ))}
               </select>
@@ -1309,6 +1576,207 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                   style={{ padding: '0.3rem 0.7rem', borderRadius: '8px' }}
                 >
                   <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sub-Modal: Quản Lý Danh Mục Sản Phẩm & Công Đoạn */}
+        {showProductManager && (
+          <div
+            className="modal-overlay"
+            style={{ zIndex: 1100, background: 'rgba(0, 0, 0, 0.78)' }}
+            onClick={() => setShowProductManager(false)}
+          >
+            <div
+              className="modal-content"
+              style={{ maxWidth: '720px', width: '92%' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sliders size={18} color="var(--accent-cyan)" />
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>
+                    Quản Lý Danh Mục Sản Phẩm & Công Đoạn
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowProductManager(false)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', padding: '4px' }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Form Thêm / Sửa nhanh */}
+              <form onSubmit={handleSaveProductManager} style={{ background: 'var(--bg-input)', border: '1px solid var(--border-subtle)', borderRadius: '8px', padding: '1rem', marginBottom: '1.2rem' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: managerForm.originalCode ? 'var(--accent-cyan)' : '#10b981', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  {managerForm.originalCode ? <Edit2 size={14} /> : <Plus size={14} />}
+                  <span>{managerForm.originalCode ? `Chỉnh sửa công đoạn: ${managerForm.originalCode}` : 'Thêm sản phẩm / công đoạn mới vào danh mục'}</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.65rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.7rem' }}>Mã SP / Công đoạn *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      placeholder="VD: SMT, DÁN KEO..."
+                      value={managerForm.code}
+                      onChange={(e) => setManagerForm({ ...managerForm, code: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.7rem' }}>Tên Tiếng Việt *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      placeholder="VD: Hàn dán SMT..."
+                      value={managerForm.nameVi}
+                      onChange={(e) => setManagerForm({ ...managerForm, nameVi: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.7rem' }}>TCGC Chuẩn (giây)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      value={managerForm.tcgc}
+                      onChange={(e) => setManagerForm({ ...managerForm, tcgc: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label" style={{ fontSize: '0.7rem' }}>Nhân lực chuẩn (người)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ fontSize: '0.8rem', padding: '0.4rem 0.6rem' }}
+                      value={managerForm.manBase}
+                      onChange={(e) => setManagerForm({ ...managerForm, manBase: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                  {managerForm.originalCode && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setManagerForm({ code: '', nameVi: '', tcgc: 300, manBase: 20, originalCode: undefined })}
+                      style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                    >
+                      Hủy sửa
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    style={{ fontSize: '0.75rem', padding: '0.35rem 0.85rem' }}
+                  >
+                    <Save size={13} />
+                    <span>{managerForm.originalCode ? 'Lưu Cập Nhật' : 'Thêm Vào Danh Mục'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Bảng danh sách các sản phẩm / công đoạn */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                    Danh sách hiện có ({Object.keys(productPresets).length} mục):
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleResetProductPresets}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', fontSize: '0.7rem', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Khôi phục 6 mục mặc định
+                  </button>
+                </div>
+
+                <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border-subtle)', borderRadius: '6px' }}>
+                  <table className="mes-table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr>
+                        <th>Mã</th>
+                        <th>Tên Tiếng Việt</th>
+                        <th style={{ textAlign: 'right' }}>TCGC (s)</th>
+                        <th style={{ textAlign: 'right' }}>Nhân lực</th>
+                        <th style={{ textAlign: 'center', width: '90px' }}>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(productPresets).map((code) => {
+                        const p = productPresets[code];
+                        return (
+                          <tr key={code}>
+                            <td style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
+                              {code}
+                            </td>
+                            <td>{p.nameVi}</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{p.tcgc}s</td>
+                            <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>{p.manBase}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', gap: '4px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditProduct(code)}
+                                  style={{
+                                    background: 'rgba(56, 189, 248, 0.15)',
+                                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                                    color: '#38bdf8',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.7rem',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Chỉnh sửa mục này"
+                                >
+                                  Sửa
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProductPreset(code)}
+                                  style={{
+                                    background: 'rgba(244, 63, 94, 0.15)',
+                                    border: '1px solid rgba(244, 63, 94, 0.35)',
+                                    color: '#f43f5e',
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.7rem',
+                                    cursor: 'pointer',
+                                  }}
+                                  title="Xóa khỏi danh mục"
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '1rem', textAlign: 'right' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowProductManager(false)}
+                  style={{ fontSize: '0.8rem', padding: '0.4rem 1rem' }}
+                >
+                  Đóng
                 </button>
               </div>
             </div>
