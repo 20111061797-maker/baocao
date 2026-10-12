@@ -264,7 +264,7 @@ namespace ProductionDashboard.Api.Controllers
                 ws.Cell(rowIdx, 12).Value = totalNG;
                 ws.Cell(rowIdx, 13).Value = Math.Round(ngRate, 2);
                 ws.Cell(rowIdx, 14).Value = dtMinutes;
-                ws.Cell(rowIdx, 15).Value = r.Notes ?? "";
+                ws.Cell(rowIdx, 15).Value = DashboardService.CleanNotes(r.Notes);
 
                 rowIdx++;
             }
@@ -303,7 +303,8 @@ namespace ProductionDashboard.Api.Controllers
 
             foreach (var r in records)
             {
-                sb.AppendLine($"{r.Date:yyyy-MM-dd},\"{r.ProductCode}\",\"{r.ProductNameVi}\",\"{r.Shift}\",{r.PlannedQuantity},{r.ActualQuantity},{Math.Round(r.AchievementRate * 100, 1)},{r.StandardWorkingTime},{r.WorkingHours},{Math.Round(r.Efficiency * 100, 1)},{Math.Round(r.UPH, 1)},\"{r.Notes}\"");
+                string cleanNote = DashboardService.CleanNotes(r.Notes);
+                sb.AppendLine($"{r.Date:yyyy-MM-dd},\"{r.ProductCode}\",\"{r.ProductNameVi}\",\"{r.Shift}\",{r.PlannedQuantity},{r.ActualQuantity},{Math.Round(r.AchievementRate * 100, 1)},{r.StandardWorkingTime},{r.WorkingHours},{Math.Round(r.Efficiency * 100, 1)},{Math.Round(r.UPH, 1)},\"{cleanNote}\"");
             }
 
             byte[] bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();

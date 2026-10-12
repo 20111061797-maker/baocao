@@ -187,9 +187,12 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({
               <div style={{ background: 'var(--bg-input)', padding: '0.75rem', borderRadius: '6px', fontSize: '0.78rem' }}>
                 <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Ghi chú sản xuất thực tế: </span>
                 <ul style={{ paddingLeft: '1.2rem', marginTop: '0.3rem', color: 'var(--text-dim)' }}>
-                  {data.relatedNotes.map((note, idx) => (
-                    <li key={idx}>{note}</li>
-                  ))}
+                  {data.relatedNotes
+                    .map((note) => note.replace(/<!--DEFECT_META:.*?-->/g, '').trim())
+                    .filter((note) => note.length > 0)
+                    .map((cleanNote, idx) => (
+                      <li key={idx}>{cleanNote}</li>
+                    ))}
                 </ul>
               </div>
             )}

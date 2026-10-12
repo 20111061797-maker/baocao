@@ -232,13 +232,21 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
     e.preventDefault();
     setFeedback(null);
     try {
-      // Serialize custom defect data & custom labels into metadata tag inside notes
+      // Serialize custom defect data & custom labels into metadata tag inside notes only when needed
       const cleanNote = (formData.notes || '').replace(/<!--DEFECT_META:.*?-->/g, '').trim();
-      const meta = JSON.stringify({
-        customDefects,
-        defectLabels,
-      });
-      const notesWithMeta = `${cleanNote} <!--DEFECT_META:${meta}-->`.trim();
+      const hasCustomDefects = customDefects.length > 0;
+      const hasCustomLabels = Object.keys(defectLabels).some(
+        (k) => defectLabels[k] !== DEFAULT_DEFECT_LABELS[k]
+      );
+
+      let notesWithMeta = cleanNote;
+      if (hasCustomDefects || hasCustomLabels) {
+        const meta = JSON.stringify({
+          customDefects,
+          defectLabels,
+        });
+        notesWithMeta = `${cleanNote} <!--DEFECT_META:${meta}-->`.trim();
+      }
 
       const payload: Partial<ProductionRecordCrud> = {
         ...formData,

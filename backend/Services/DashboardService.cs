@@ -584,6 +584,12 @@ namespace ProductionDashboard.Api.Services
             };
         }
 
+        public static string CleanNotes(string? notes)
+        {
+            if (string.IsNullOrWhiteSpace(notes)) return string.Empty;
+            return System.Text.RegularExpressions.Regex.Replace(notes, @"<!--DEFECT_META:.*?-->", "").Trim();
+        }
+
         private List<ProductMatrixRowDto> BuildProductMatrix(
             List<ProductionRecord> prodRecords,
             List<QualityRecord> qualRecords,
@@ -617,7 +623,7 @@ namespace ProductionDashboard.Api.Services
                     WorkingHours = p.WorkingHours,
                     Shift = p.Shift,
                     Status = p.Status,
-                    Notes = p.Notes
+                    Notes = CleanNotes(p.Notes)
                 });
             }
 
@@ -643,7 +649,12 @@ namespace ProductionDashboard.Api.Services
                 result.TotalNG = quals.Sum(q => q.TotalNG);
                 result.NGRate = result.TotalProduction > 0 ? Math.Round((result.TotalNG / result.TotalProduction) * 100, 2) : 0;
                 result.TotalDowntime = dts.Sum(d => d.DowntimeMinutes);
-                result.RelatedNotes = records.Where(r => !string.IsNullOrWhiteSpace(r.Notes)).Select(r => $"{r.Date:yyyy-MM-dd}: {r.Notes}").Distinct().ToList();
+                result.RelatedNotes = records
+                    .Select(r => new { r.Date, Note = CleanNotes(r.Notes) })
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Note))
+                    .Select(x => $"{x.Date:yyyy-MM-dd}: {x.Note}")
+                    .Distinct()
+                    .ToList();
 
                 result.Records = BuildProductMatrix(records, quals, dts);
                 result.DefectBreakdown = CalculatePareto(quals, records).Defects;
@@ -710,6 +721,12 @@ namespace ProductionDashboard.Api.Services
                     result.TotalDowntime = dts.Sum(d => d.DowntimeMinutes);
                     result.DefectBreakdown = CalculatePareto(quals, prods).Defects;
                     result.DowntimeBreakdown = BuildDowntimeAnalysis(dts).Reasons;
+                    result.RelatedNotes = prods
+                        .Select(r => new { r.Date, Note = CleanNotes(r.Notes) })
+                        .Where(x => !string.IsNullOrWhiteSpace(x.Note))
+                        .Select(x => $"{x.Date:yyyy-MM-dd}: {x.Note}")
+                        .Distinct()
+                        .ToList();
                 }
             }
 

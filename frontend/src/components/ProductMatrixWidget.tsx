@@ -220,8 +220,11 @@ export const ProductMatrixWidget: React.FC<ProductMatrixWidgetProps> = ({
                       {r.efficiency}%
                     </td>
                     <td style={{ textAlign: 'center', fontSize: '0.75rem' }}>{r.shift}</td>
-                    <td style={{ fontSize: '0.75rem', color: 'var(--text-dim)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r.notes || '-'}
+                    <td
+                      style={{ fontSize: '0.75rem', color: 'var(--text-dim)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={r.notes ? r.notes.replace(/<!--DEFECT_META:.*?-->/g, '').trim() : ''}
+                    >
+                      {r.notes ? r.notes.replace(/<!--DEFECT_META:.*?-->/g, '').trim() || '-' : '-'}
                     </td>
                   </tr>
                 );
