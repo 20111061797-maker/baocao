@@ -341,9 +341,29 @@ namespace ProductionDashboard.Api.Controllers
                 _context.SaveChanges();
             }
 
-            DataSeeder.EnsureRecentRecords(_context);
+            var cutoff = new DateTime(2026, 10, 8);
+            var autoSeeded = _context.ProductionRecords
+                .Where(p => p.Date.Date > cutoff && (p.Notes == "Chậm tiến độ do chờ cấp vật tư" || p.Notes == "Sản xuất ổn định đạt chỉ tiêu"))
+                .ToList();
+            if (autoSeeded.Any())
+            {
+                var autoDates = autoSeeded.Select(p => p.Date.Date).Distinct().ToList();
+                var autoCodes = autoSeeded.Select(p => p.ProductCode).Distinct().ToList();
+                _context.ProductionRecords.RemoveRange(autoSeeded);
 
-            return Ok(new { message = $"Đã dọn dẹp {count} bản ghi trống và đồng bộ dữ liệu đến hôm nay.", removedCount = count });
+                var autoMans = _context.ManpowerRecords.Where(m => autoDates.Contains(m.Date.Date) && autoCodes.Contains(m.ProductCode)).ToList();
+                if (autoMans.Any()) _context.ManpowerRecords.RemoveRange(autoMans);
+
+                var autoQuals = _context.QualityRecords.Where(q => autoDates.Contains(q.Date.Date) && autoCodes.Contains(q.ProductCode)).ToList();
+                if (autoQuals.Any()) _context.QualityRecords.RemoveRange(autoQuals);
+
+                var autoDts = _context.DowntimeRecords.Where(d => autoDates.Contains(d.Date.Date) && autoCodes.Contains(d.ProductCode)).ToList();
+                if (autoDts.Any()) _context.DowntimeRecords.RemoveRange(autoDts);
+
+                _context.SaveChanges();
+            }
+
+            return Ok(new { message = $"Đã dọn dẹp {count} bản ghi trống và {autoSeeded.Count} bản ghi tự động ngoài kỳ.", removedCount = count + autoSeeded.Count });
         }
 
         [HttpGet("crud-records")]

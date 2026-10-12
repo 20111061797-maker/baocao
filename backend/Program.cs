@@ -59,8 +59,37 @@ using (var scope = app.Services.CreateScope())
     try
     {
         DataSeeder.Initialize(context, parser, workspaceRoot);
-        DataSeeder.EnsureRecentRecords(context);
         Console.WriteLine($"[INFO] Database initialized and seeded successfully on port {port}.");
+
+        // Remove auto-generated mock records after 2026-10-08 so system only contains real user/excel data
+        var cutoff = new DateTime(2026, 10, 8);
+        var autoSeeded = context.ProductionRecords
+            .Where(p => p.Date.Date > cutoff && (p.Notes == "Chậm tiến độ do chờ cấp vật tư" || p.Notes == "Sản xuất ổn định đạt chỉ tiêu"))
+            .ToList();
+        if (autoSeeded.Any())
+        {
+            var autoDates = autoSeeded.Select(p => p.Date.Date).Distinct().ToList();
+            var autoCodes = autoSeeded.Select(p => p.ProductCode).Distinct().ToList();
+            context.ProductionRecords.RemoveRange(autoSeeded);
+
+            var autoMans = context.ManpowerRecords
+                .Where(m => autoDates.Contains(m.Date.Date) && autoCodes.Contains(m.ProductCode))
+                .ToList();
+            if (autoMans.Any()) context.ManpowerRecords.RemoveRange(autoMans);
+
+            var autoQuals = context.QualityRecords
+                .Where(q => autoDates.Contains(q.Date.Date) && autoCodes.Contains(q.ProductCode))
+                .ToList();
+            if (autoQuals.Any()) context.QualityRecords.RemoveRange(autoQuals);
+
+            var autoDts = context.DowntimeRecords
+                .Where(d => autoDates.Contains(d.Date.Date) && autoCodes.Contains(d.ProductCode))
+                .ToList();
+            if (autoDts.Any()) context.DowntimeRecords.RemoveRange(autoDts);
+
+            context.SaveChanges();
+            Console.WriteLine($"[INFO] Cleaned up {autoSeeded.Count} auto-generated records for dates after {cutoff:yyyy-MM-dd}.");
+        }
 
         // Prune zero-quantity future phantom records
         var phantoms = context.ProductionRecords

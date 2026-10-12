@@ -18,40 +18,58 @@ namespace ProductionDashboard.Api.Services
 
         public (DateTime fromDate, DateTime toDate) ResolveDateRange(DashboardFilterRequest filter)
         {
-            // Anchor strictly to today (Vietnam time: UTC+7), e.g. 2026-10-11
-            DateTime today = DateTime.UtcNow.AddHours(7).Date;
-
             var activeRecords = _context.ProductionRecords
                 .Where(p => p.ActualQuantity > 0 || p.PlannedQuantity > 0 || p.WorkingHours > 0);
 
+            DateTime latestDataDate = activeRecords.Any()
+                ? activeRecords.Max(p => p.Date).Date
+                : DateTime.Today;
+
             DateTime minDateInDb = activeRecords.Any()
                 ? activeRecords.Min(p => p.Date).Date
-                : today.AddDays(-30);
+                : latestDataDate.AddDays(-30);
 
             if (!string.IsNullOrWhiteSpace(filter.Preset))
             {
                 switch (filter.Preset.ToLower())
                 {
                     case "today":
-                        return (today, today);
+                        DateTime today = DateTime.UtcNow.AddHours(7).Date;
+                        bool hasTodayData = _context.ProductionRecords.Any(p => p.Date.Date == today && (p.ActualQuantity > 0 || p.PlannedQuantity > 0));
+                        DateTime targetDate = hasTodayData ? today : latestDataDate;
+                        return (targetDate, targetDate);
+
                     case "yesterday":
-                        return (today.AddDays(-1), today.AddDays(-1));
+                        return (latestDataDate.AddDays(-1), latestDataDate.AddDays(-1));
+
                     case "this_week":
-                        int diff = (7 + (today.DayOfWeek - DayOfWeek.Monday)) % 7;
-                        return (today.AddDays(-diff), today);
+                        int diff = (7 + (latestDataDate.DayOfWeek - DayOfWeek.Monday)) % 7;
+                        DateTime startWeek = latestDataDate.AddDays(-diff);
+                        if (startWeek < minDateInDb) startWeek = minDateInDb;
+                        return (startWeek, latestDataDate);
+
                     case "this_month":
-                        return (new DateTime(today.Year, today.Month, 1), today);
+                        DateTime startMonth = new DateTime(latestDataDate.Year, latestDataDate.Month, 1);
+                        if (startMonth < minDateInDb) startMonth = minDateInDb;
+                        return (startMonth, latestDataDate);
+
                     case "last_7_days":
-                        return (today.AddDays(-6), today);
+                        DateTime start7 = latestDataDate.AddDays(-6);
+                        if (start7 < minDateInDb) start7 = minDateInDb;
+                        return (start7, latestDataDate);
+
                     case "last_30_days":
-                        return (today.AddDays(-29), today);
+                        DateTime start30 = latestDataDate.AddDays(-29);
+                        if (start30 < minDateInDb) start30 = minDateInDb;
+                        return (start30, latestDataDate);
+
                     case "all":
-                        return (minDateInDb, today);
+                        return (minDateInDb, latestDataDate);
                 }
             }
 
-            DateTime from = filter.DateFrom?.Date ?? today.AddDays(-6);
-            DateTime to = filter.DateTo?.Date ?? today;
+            DateTime from = filter.DateFrom?.Date ?? latestDataDate.AddDays(-6);
+            DateTime to = filter.DateTo?.Date ?? latestDataDate;
             if (from > to)
             {
                 (from, to) = (to, from);

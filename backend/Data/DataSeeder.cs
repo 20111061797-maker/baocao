@@ -16,7 +16,6 @@ namespace ProductionDashboard.Api.Data
 
             if (context.ProductionRecords.Any() && context.InventoryAuditRecords.Any())
             {
-                EnsureRecentRecords(context);
                 return; // Already initialized
             }
 
@@ -142,11 +141,11 @@ namespace ProductionDashboard.Api.Data
             }
             context.SaveChanges();
 
-            // 2. Enrich historical dates up to current date for all 6 core products
-            EnsureRecentRecords(context);
+            // 2. Enrich baseline historical sample dates up to 2026-10-08 only
+            SeedHistoricalSampleRecords(context);
         }
 
-        public static void EnsureRecentRecords(AppDbContext context)
+        private static void SeedHistoricalSampleRecords(AppDbContext context)
         {
             var productList = new[]
             {
@@ -159,11 +158,11 @@ namespace ProductionDashboard.Api.Data
             };
 
             var historicalDates = new List<DateTime>();
-            // Vietnam local date (e.g. 2026-10-11)
-            DateTime today = DateTime.UtcNow.AddHours(7).Date;
+            // Baseline sample data ends on 2026-10-08 matching the provided factory file
+            DateTime sampleEndDate = new DateTime(2026, 10, 8);
             for (int i = 14; i >= 0; i--)
             {
-                historicalDates.Add(today.AddDays(-i));
+                historicalDates.Add(sampleEndDate.AddDays(-i));
             }
 
             var rand = new Random(42);
