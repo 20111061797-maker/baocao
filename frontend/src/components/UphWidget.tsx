@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Bar, Line } from 'react-chartjs-2';
-import { Gauge, SlidersHorizontal, Zap, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Chart, Bar } from 'react-chartjs-2';
+import { Zap, ArrowUpRight, ArrowDownRight, SlidersHorizontal } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { UphAnalysis } from '../types/dashboard';
 
@@ -11,9 +11,49 @@ interface UphWidgetProps {
 
 export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
   const t = translations[lang];
-  const [viewMode, setViewMode] = useState<'byProduct' | 'trend'>('byProduct');
+  // Default to daily progression trend ("đi lên theo ngày")
+  const [viewMode, setViewMode] = useState<'trend' | 'byProduct'>('trend');
 
-  const products = data.byProduct || [];
+  // Trend progression sorted chronologically from earliest to latest date
+  const trend = [...(data.trend || [])].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const trendChartData = {
+    labels: trend.map((t) => t.date),
+    datasets: [
+      {
+        type: 'bar' as const,
+        label: 'UPH Thực tế (pcs/h)',
+        data: trend.map((t) => t.uph),
+        backgroundColor: 'rgba(6, 182, 212, 0.55)',
+        borderColor: '#06b6d4',
+        borderWidth: 1,
+        borderRadius: 4,
+        yAxisID: 'y',
+        order: 2,
+      },
+      {
+        type: 'line' as const,
+        label: 'Đường Xu Hướng Tăng Dần (Trend)',
+        data: trend.map((t) => t.uph),
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56, 189, 248, 0.12)',
+        borderWidth: 3,
+        pointBackgroundColor: '#38bdf8',
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        fill: false,
+        tension: 0.35,
+        yAxisID: 'y',
+        order: 1,
+      },
+    ],
+  };
+
+  // Products sorted by UPH ascending for smooth progressive visualization
+  const products = [...(data.byProduct || [])].sort((a, b) => a.uph - b.uph);
   const byProductChartData = {
     labels: products.map((p) => p.product),
     datasets: [
@@ -36,35 +76,28 @@ export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
     ],
   };
 
-  const trend = data.trend || [];
-  const trendChartData = {
-    labels: trend.map((t) => t.date),
-    datasets: [
-      {
-        label: 'UPH Xu hướng',
-        data: trend.map((t) => t.uph),
-        borderColor: '#06b6d4',
-        backgroundColor: 'rgba(6, 182, 212, 0.2)',
-        borderWidth: 2.5,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 4,
-      },
-    ],
-  };
-
   const chartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: 'top',
-        labels: { color: 'var(--text-muted)', font: { size: 10 } },
+        labels: {
+          color: 'var(--text-muted)',
+          font: { size: 10, family: 'var(--font-sans)' },
+          boxWidth: 12,
+        },
       },
       tooltip: {
         backgroundColor: 'rgba(15, 23, 42, 0.95)',
         borderColor: '#334e7a',
         borderWidth: 1,
+        titleColor: '#f1f5f9',
+        bodyColor: '#cbd5e1',
       },
     },
     scales: {
@@ -97,8 +130,8 @@ export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
             onChange={(e) => setViewMode(e.target.value as any)}
             style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
           >
-            <option value="byProduct">Theo Sản phẩm</option>
-            <option value="trend">Theo Ngày (Trend)</option>
+            <option value="trend">📈 Theo Ngày (Tiến độ tăng dần)</option>
+            <option value="byProduct">📊 Theo Sản phẩm</option>
           </select>
         </div>
       </div>
@@ -137,14 +170,14 @@ export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
       </div>
 
       <div className="chart-wrapper">
-        {products.length === 0 ? (
+        {(viewMode === 'trend' ? trend.length === 0 : products.length === 0) ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
             {t.noDataTitle}
           </div>
-        ) : viewMode === 'byProduct' ? (
-          <Bar data={byProductChartData} options={chartOptions} />
+        ) : viewMode === 'trend' ? (
+          <Chart type="bar" data={trendChartData as any} options={chartOptions} />
         ) : (
-          <Line data={trendChartData} options={chartOptions} />
+          <Bar data={byProductChartData} options={chartOptions} />
         )}
       </div>
     </div>

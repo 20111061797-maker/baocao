@@ -319,9 +319,7 @@ export const translations = {
     printReport: "Print Report",
     saveReport: "Save Report",
     deleteReport: "Delete Report",
-
     manpowerWarning: "MANPOWER ALERT: Absence shortage rate exceeds configured threshold!",
-
     noDataTitle: "No production data found for selected period",
     noDataDesc: "Please adjust date range or product filter.",
     loadingData: "Loading production data...",

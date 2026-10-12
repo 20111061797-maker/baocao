@@ -393,7 +393,7 @@ namespace ProductionDashboard.Api.Controllers
             }
 
             int total = query.Count();
-            var list = query.OrderByDescending(p => p.Date).ThenBy(p => p.ProductCode)
+            var list = query.OrderByDescending(p => p.Date).ThenByDescending(p => p.Id)
                             .Skip((page - 1) * pageSize)
                             .Take(pageSize)
                             .ToList();
@@ -508,9 +508,10 @@ namespace ProductionDashboard.Api.Controllers
             _context.ManpowerRecords.Add(man);
 
             // Quality
-            double totalNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
+            double baseNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
                              dto.WireNG + dto.PCBANG + dto.THDNG + dto.SpeakerNG +
                              dto.CoverNG + dto.NomaliNG + dto.BrokenWireNG;
+            double totalNG = dto.TotalNG >= baseNG ? dto.TotalNG : baseNG;
             double ngRate = dto.ActualQuantity > 0 ? (totalNG / dto.ActualQuantity) : 0;
 
             var qual = new QualityRecord
@@ -606,9 +607,10 @@ namespace ProductionDashboard.Api.Controllers
             man.MissingRate = dto.PlannedManpower > 0 ? ((dto.PlannedManpower - dto.ActualManpower) / dto.PlannedManpower) : 0;
 
             // Sync Quality
-            double totalNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
+            double baseNG = dto.FunctionalNG + dto.AudioNG + dto.ScratchNG + dto.EdgeChipNG +
                              dto.WireNG + dto.PCBANG + dto.THDNG + dto.SpeakerNG +
                              dto.CoverNG + dto.NomaliNG + dto.BrokenWireNG;
+            double totalNG = dto.TotalNG >= baseNG ? dto.TotalNG : baseNG;
             double ngRate = dto.ActualQuantity > 0 ? (totalNG / dto.ActualQuantity) : 0;
 
             var qual = _context.QualityRecords.FirstOrDefault(q => q.Date.Date == oldDate && q.ProductCode == oldProd);

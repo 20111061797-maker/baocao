@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Plus,
   Edit2,
   Trash2,
   Save,
-  RotateCcw,
   Search,
   CheckCircle,
   AlertCircle,
@@ -35,6 +34,16 @@ const PRODUCT_PRESETS: { [key: string]: { nameVi: string; tcgc: number; manBase:
   '组装': { nameVi: 'Lắp ráp (Assembly)', tcgc: 1663, manBase: 85 },
   '包装': { nameVi: 'Đóng gói (Packaging)', tcgc: 518, manBase: 32 },
 };
+
+const SHIFT_PRESETS = [
+  'Ca Ngày',
+  'Ca Đêm',
+  'Ca 1',
+  'Ca 2',
+  'Ca 3',
+  'Ca Hành chính',
+  'Ca Tăng ca'
+];
 
 const INITIAL_FORM: ProductionRecordCrud = {
   id: 0,
@@ -75,10 +84,38 @@ const INITIAL_FORM: ProductionRecordCrud = {
   impactDepartment: 'Kỹ thuật / Thiết bị'
 };
 
+const DEFAULT_DEFECT_LABELS: Record<string, string> = {
+  scratchNG: 'XƯỚC (划伤)',
+  audioNG: 'ÂM THANH (音频)',
+  edgeChipNG: 'MẺ (崩边)',
+  functionalNG: 'CÔNG NĂNG (功能)',
+  wireNG: 'DÂY USB (想材)',
+  pcbaNG: 'PCBA',
+  thdNG: 'THD',
+  speakerNG: 'LỎM LOA',
+  coverNG: 'HỞ NẮP',
+  nomaliNG: 'NOMALI (异常)',
+  brokenWireNG: 'ĐỨT DÂY (断线)',
+};
+
+interface CustomDefectItem {
+  id: string;
+  name: string;
+  qty: number;
+}
+
 export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClose, onSuccess }) => {
   const [activeTab, setActiveTab] = useState<'form' | 'table'>('table');
   const [formData, setFormData] = useState<ProductionRecordCrud>(INITIAL_FORM);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+
+  // Custom Shift State
+  const [isCustomShift, setIsCustomShift] = useState<boolean>(false);
+
+  // Dynamic Custom Defects & Editable Labels
+  const [customDefects, setCustomDefects] = useState<CustomDefectItem[]>([]);
+  const [defectLabels, setDefectLabels] = useState<Record<string, string>>(DEFAULT_DEFECT_LABELS);
+  const [editingLabelKey, setEditingLabelKey] = useState<string | null>(null);
 
   // Table state
   const [records, setRecords] = useState<ProductionRecordCrud[]>([]);
@@ -93,8 +130,8 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
   // Status feedback
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Auto calculate metrics
-  const totalNG =
+  // Calculate standard 11 defects sum
+  const standardDefectsSum =
     Number(formData.functionalNG || 0) +
     Number(formData.audioNG || 0) +
     Number(formData.scratchNG || 0) +
@@ -107,6 +144,12 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
     Number(formData.nomaliNG || 0) +
     Number(formData.brokenWireNG || 0);
 
+  // Calculate custom defects sum
+  const customDefectsSum = customDefects.reduce((acc, d) => acc + (Number(d.qty) || 0), 0);
+
+  // Total NG (Standard + Custom)
+  const totalNG = standardDefectsSum + customDefectsSum;
+
   const planQty = Number(formData.plannedQuantity || 0);
   const actualQty = Number(formData.actualQuantity || 0);
   const hours = Number(formData.workingHours || 0);
@@ -117,6 +160,15 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
   const calculatedEff = hours > 0 ? ((actualQty * tcgc) / (3600 * hours)) * 100 : 0;
   const calculatedNGRate = actualQty > 0 ? (totalNG / actualQty) * 100 : 0;
   const calculatedMissingMan = Number(formData.plannedManpower || 0) - Number(formData.actualManpower || 0);
+
+  // Dynamic shift options from records
+  const availableShifts = useMemo(() => {
+    const set = new Set<string>(SHIFT_PRESETS);
+    records.forEach((r) => {
+      if (r.shift && r.shift.trim()) set.add(r.shift.trim());
+    });
+    return Array.from(set);
+  }, [records]);
 
   // Load records
   const loadRecords = async () => {
@@ -129,7 +181,11 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
         shift: filterShift,
         search: searchTerm,
       });
-      setRecords(res.records);
+      // Sort newest dates first
+      const sorted = [...(res.records || [])].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      setRecords(sorted);
       setTotalCount(res.total);
     } catch (err: any) {
       console.error(err);
@@ -154,12 +210,39 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
     }));
   };
 
+  // Custom Defect Handlers
+  const handleAddCustomDefect = () => {
+    setCustomDefects((prev) => [
+      ...prev,
+      { id: Date.now().toString(), name: `Lỗi mới ${prev.length + 1}`, qty: 0 },
+    ]);
+  };
+
+  const handleUpdateCustomDefect = (id: string, field: 'name' | 'qty', value: any) => {
+    setCustomDefects((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, [field]: value } : d))
+    );
+  };
+
+  const handleRemoveCustomDefect = (id: string) => {
+    setCustomDefects((prev) => prev.filter((d) => d.id !== id));
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFeedback(null);
     try {
+      // Serialize custom defect data & custom labels into metadata tag inside notes
+      const cleanNote = (formData.notes || '').replace(/<!--DEFECT_META:.*?-->/g, '').trim();
+      const meta = JSON.stringify({
+        customDefects,
+        defectLabels,
+      });
+      const notesWithMeta = `${cleanNote} <!--DEFECT_META:${meta}-->`.trim();
+
       const payload: Partial<ProductionRecordCrud> = {
         ...formData,
+        notes: notesWithMeta,
         achievementRate: calculatedAchieve / 100,
         uph: Math.round(calculatedUPH * 10) / 10,
         efficiency: calculatedEff / 100,
@@ -188,8 +271,37 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
   };
 
   const handleEditClick = (rec: ProductionRecordCrud) => {
+    // Check if shift is custom
+    const isCustom = !SHIFT_PRESETS.includes(rec.shift);
+    setIsCustomShift(isCustom);
+
+    // Parse metadata from notes if present
+    let cleanNotes = rec.notes || '';
+    let parsedDefects: CustomDefectItem[] = [];
+    let parsedLabels: Record<string, string> = { ...DEFAULT_DEFECT_LABELS };
+
+    const metaMatch = cleanNotes.match(/<!--DEFECT_META:(.*?)-->/);
+    if (metaMatch) {
+      try {
+        const parsed = JSON.parse(metaMatch[1]);
+        if (Array.isArray(parsed.customDefects)) {
+          parsedDefects = parsed.customDefects;
+        }
+        if (parsed.defectLabels && typeof parsed.defectLabels === 'object') {
+          parsedLabels = { ...DEFAULT_DEFECT_LABELS, ...parsed.defectLabels };
+        }
+      } catch (e) {
+        console.error('Failed to parse defect metadata', e);
+      }
+      cleanNotes = cleanNotes.replace(/<!--DEFECT_META:.*?-->/g, '').trim();
+    }
+
+    setCustomDefects(parsedDefects);
+    setDefectLabels(parsedLabels);
+
     setFormData({
       ...rec,
+      notes: cleanNotes,
       date: rec.date.slice(0, 10),
     });
     setIsEditing(true);
@@ -215,12 +327,20 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
       ...INITIAL_FORM,
       date: new Date().toISOString().slice(0, 10),
     });
+    setIsCustomShift(false);
+    setCustomDefects([]);
+    setDefectLabels({ ...DEFAULT_DEFECT_LABELS });
     setIsEditing(false);
     setActiveTab('form');
     setFeedback(null);
   };
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+  // Filtered & sorted records for display (strictly newest dates first)
+  const displayRecords = useMemo(() => {
+    return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [records]);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -258,14 +378,23 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>
-                  Quản Lý Báo Cáo Sản Xuất (CRUD Database)
+                  Quản Lý Dữ Liệu Sản Xuất & Lỗi NG
                 </h2>
-                <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: 600 }}>
-                  Lưu Trực Tiếp SQLite
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    color: 'var(--accent-cyan)',
+                    fontWeight: 600,
+                  }}
+                >
+                  SQLite / CRUD Trực Tiếp
                 </span>
               </div>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)', margin: '2px 0 0 0' }}>
-                Nhập mới, chỉnh sửa và xóa bản ghi sản lượng, nhân lực, phế phẩm NG & dừng máy
+                Thêm ca làm việc tùy chọn, thêm / sửa loại lỗi NG, bố trí nhân lực và thời gian dừng máy
               </p>
             </div>
           </div>
@@ -375,7 +504,7 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                 </div>
               </div>
               <div>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Thiếu nhân lực</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase' }}>Thiếu hụt Nhân lực</span>
                 <div style={{ fontSize: '1.05rem', fontWeight: 800, color: calculatedMissingMan > 0 ? '#f43f5e' : '#10b981' }}>
                   {calculatedMissingMan} <span style={{ fontSize: '0.7rem' }}>người</span>
                 </div>
@@ -413,17 +542,60 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                     ))}
                   </select>
                 </div>
+
+                {/* Ca làm việc - Dynamic / Custom Shift */}
                 <div>
-                  <label className="form-label">Ca làm việc</label>
-                  <select
-                    className="form-input"
-                    value={formData.shift}
-                    onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
-                  >
-                    <option value="Ca Ngày">Ca Ngày</option>
-                    <option value="Ca Đêm">Ca Đêm</option>
-                  </select>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <label className="form-label" style={{ margin: 0 }}>Ca làm việc</label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomShift(!isCustomShift)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--accent-cyan)',
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {isCustomShift ? 'Chọn ca có sẵn' : '+ Thêm / Tự nhập ca'}
+                    </button>
+                  </div>
+                  {isCustomShift ? (
+                    <input
+                      type="text"
+                      className="form-input"
+                      placeholder="Nhập tên ca (VD: Ca 1, Ca 3, Ca Tăng ca...)"
+                      value={formData.shift}
+                      onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
+                      required
+                      autoFocus
+                    />
+                  ) : (
+                    <select
+                      className="form-input"
+                      value={formData.shift}
+                      onChange={(e) => {
+                        if (e.target.value === '__CUSTOM__') {
+                          setIsCustomShift(true);
+                          setFormData({ ...formData, shift: '' });
+                        } else {
+                          setFormData({ ...formData, shift: e.target.value });
+                        }
+                      }}
+                    >
+                      {SHIFT_PRESETS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                      <option value="__CUSTOM__">+ Nhập ca khác...</option>
+                    </select>
+                  )}
                 </div>
+
                 <div>
                   <label className="form-label">Kế hoạch (Planned)</label>
                   <input
@@ -516,118 +688,167 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
               </div>
             </div>
 
-            {/* Section 3: Chi tiết 11 lỗi phế phẩm NG */}
+            {/* Section 3: Chi tiết các loại lỗi phế phẩm NG (Thêm mới + Sửa loại lỗi) */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '1rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f59e0b', fontWeight: 700, fontSize: '0.85rem' }}>
                   <AlertTriangle size={16} />
-                  <span>3. Phân Tích Chi Tiết 11 Loại Lỗi Phế Phẩm NG</span>
+                  <span>3. Phân Tích Chi Tiết Các Loại Lỗi Phế Phẩm NG</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-dim)' }}>
+                    (Bấm tên lỗi để đổi tên, hoặc thêm loại lỗi mới bên dưới)
+                  </span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-                  Tổng cộng: <strong style={{ color: '#f43f5e' }}>{totalNG} cái</strong> ({calculatedNGRate.toFixed(2)}%)
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                    Tổng cộng: <strong style={{ color: '#f43f5e' }}>{totalNG} cái</strong> ({calculatedNGRate.toFixed(2)}%)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomDefect}
+                    className="btn-secondary"
+                    style={{
+                      fontSize: '0.72rem',
+                      padding: '0.25rem 0.6rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem',
+                      borderColor: '#f59e0b',
+                      color: '#f59e0b',
+                    }}
+                  >
+                    <Plus size={13} />
+                    <span>Thêm Loại Lỗi Mới</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Standard Defect Grid (With Editable Names) */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.65rem' }}>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>XƯỚC (划伤)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.scratchNG}
-                    onChange={(e) => setFormData({ ...formData, scratchNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>ÂM THANH (音频)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.audioNG}
-                    onChange={(e) => setFormData({ ...formData, audioNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>MẺ (崩边)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.edgeChipNG}
-                    onChange={(e) => setFormData({ ...formData, edgeChipNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>CÔNG NĂNG (功能)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.functionalNG}
-                    onChange={(e) => setFormData({ ...formData, functionalNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>DÂY USB (想材)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.wireNG}
-                    onChange={(e) => setFormData({ ...formData, wireNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>PCBA</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.pcbaNG}
-                    onChange={(e) => setFormData({ ...formData, pcbaNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>THD</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.thdNG}
-                    onChange={(e) => setFormData({ ...formData, thdNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>LỎM LOA</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.speakerNG}
-                    onChange={(e) => setFormData({ ...formData, speakerNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>HỞ NẮP</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.coverNG}
-                    onChange={(e) => setFormData({ ...formData, coverNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>NOMALI (异常)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.nomaliNG}
-                    onChange={(e) => setFormData({ ...formData, nomaliNG: Number(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="form-label" style={{ fontSize: '0.72rem' }}>ĐỨT DÂY (断线)</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={formData.brokenWireNG}
-                    onChange={(e) => setFormData({ ...formData, brokenWireNG: Number(e.target.value) })}
-                  />
-                </div>
+                {(Object.keys(DEFAULT_DEFECT_LABELS) as Array<keyof typeof DEFAULT_DEFECT_LABELS>).map((fieldKey) => {
+                  const label = defectLabels[fieldKey] || DEFAULT_DEFECT_LABELS[fieldKey];
+                  const isEditingThis = editingLabelKey === fieldKey;
+
+                  return (
+                    <div key={fieldKey} style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '0.4rem', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        {isEditingThis ? (
+                          <input
+                            type="text"
+                            value={label}
+                            onChange={(e) => setDefectLabels({ ...defectLabels, [fieldKey]: e.target.value })}
+                            onBlur={() => setEditingLabelKey(null)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') setEditingLabelKey(null); }}
+                            autoFocus
+                            style={{
+                              fontSize: '0.7rem',
+                              padding: '1px 4px',
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--accent-cyan)',
+                              borderRadius: '3px',
+                              color: '#fff',
+                              width: '100%',
+                            }}
+                          />
+                        ) : (
+                          <div
+                            onClick={() => setEditingLabelKey(fieldKey)}
+                            title="Bấm để đổi tên lỗi này"
+                            style={{
+                              fontSize: '0.7rem',
+                              color: 'var(--text-dim)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <span>{label}</span>
+                            <Edit2 size={10} style={{ opacity: 0.5, flexShrink: 0 }} />
+                          </div>
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={(formData as any)[fieldKey] || 0}
+                        onChange={(e) => setFormData({ ...formData, [fieldKey]: Number(e.target.value) })}
+                      />
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Dynamic Custom Defects Added By Customer */}
+              {customDefects.length > 0 && (
+                <div style={{ marginTop: '0.85rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <Sparkles size={13} />
+                    <span>Các Loại Lỗi Bổ Sung Của Bạn ({customDefects.length})</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.65rem' }}>
+                    {customDefects.map((cd) => (
+                      <div
+                        key={cd.id}
+                        style={{
+                          background: 'rgba(56, 189, 248, 0.05)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
+                          borderRadius: '8px',
+                          padding: '0.5rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.35rem',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          <input
+                            type="text"
+                            placeholder="Tên loại lỗi..."
+                            value={cd.name}
+                            onChange={(e) => handleUpdateCustomDefect(cd.id, 'name', e.target.value)}
+                            style={{
+                              flex: 1,
+                              fontSize: '0.72rem',
+                              padding: '3px 6px',
+                              background: 'var(--bg-input)',
+                              border: '1px solid var(--border-subtle)',
+                              borderRadius: '4px',
+                              color: '#fff',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomDefect(cd.id)}
+                            title="Xóa lỗi này"
+                            style={{
+                              background: 'rgba(244, 63, 94, 0.15)',
+                              border: '1px solid rgba(244, 63, 94, 0.3)',
+                              color: '#f43f5e',
+                              borderRadius: '4px',
+                              padding: '3px 6px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>Số lượng:</span>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            value={cd.qty}
+                            onChange={(e) => handleUpdateCustomDefect(cd.id, 'qty', Number(e.target.value))}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Section 4: Dừng máy & Ghi chú */}
@@ -734,6 +955,7 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                 ))}
               </select>
 
+              {/* Dynamic shift filter covering all shifts */}
               <select
                 className="form-input"
                 style={{ width: 'auto', fontSize: '0.78rem' }}
@@ -741,8 +963,11 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                 onChange={(e) => setFilterShift(e.target.value)}
               >
                 <option value="all">Tất cả ca</option>
-                <option value="Ca Ngày">Ca Ngày</option>
-                <option value="Ca Đêm">Ca Đêm</option>
+                {availableShifts.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
               </select>
 
               <button
@@ -780,14 +1005,14 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
                         Đang tải dữ liệu từ database...
                       </td>
                     </tr>
-                  ) : records.length === 0 ? (
+                  ) : displayRecords.length === 0 ? (
                     <tr>
                       <td colSpan={11} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-dim)' }}>
                         Không có bản ghi nào phù hợp. Bấm "Thêm Mới" để tạo bản ghi đầu tiên!
                       </td>
                     </tr>
                   ) : (
-                    records.map((r) => {
+                    displayRecords.map((r) => {
                       const achievePct = (r.achievementRate * 100);
                       return (
                         <tr

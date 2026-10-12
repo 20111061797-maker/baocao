@@ -27,7 +27,8 @@ export const ProductMatrixWidget: React.FC<ProductMatrixWidgetProps> = ({
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(true);
+      // For date or numerical metrics, default descending (newest/highest first)
+      setSortAsc(false);
     }
   };
 
@@ -46,14 +47,30 @@ export const ProductMatrixWidget: React.FC<ProductMatrixWidgetProps> = ({
 
   const sortedData = useMemo(() => {
     return [...filteredData].sort((a, b) => {
-      const aVal = a[sortField];
-      const bVal = b[sortField];
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        return sortAsc ? aVal - bVal : bVal - aVal;
+      let comp = 0;
+      if (sortField === 'date') {
+        const timeA = new Date(a.date).getTime() || 0;
+        const timeB = new Date(b.date).getTime() || 0;
+        comp = sortAsc ? timeA - timeB : timeB - timeA;
+      } else {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          comp = sortAsc ? aVal - bVal : bVal - aVal;
+        } else {
+          comp = sortAsc
+            ? String(aVal || '').localeCompare(String(bVal || ''))
+            : String(bVal || '').localeCompare(String(aVal || ''));
+        }
       }
-      return sortAsc
-        ? String(aVal || '').localeCompare(String(bVal || ''))
-        : String(bVal || '').localeCompare(String(aVal || ''));
+
+      // Secondary tie-breaker: ALWAYS newest date first!
+      if (comp === 0) {
+        const timeA = new Date(a.date).getTime() || 0;
+        const timeB = new Date(b.date).getTime() || 0;
+        return timeB - timeA;
+      }
+      return comp;
     });
   }, [filteredData, sortField, sortAsc]);
 

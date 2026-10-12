@@ -591,7 +591,7 @@ namespace ProductionDashboard.Api.Services
         {
             var rows = new List<ProductMatrixRowDto>();
 
-            foreach (var p in prodRecords.OrderByDescending(p => p.Date).ThenBy(p => p.ProductCode))
+            foreach (var p in prodRecords.OrderByDescending(p => p.Date).ThenByDescending(p => p.Id))
             {
                 var qRec = qualRecords.FirstOrDefault(q => q.Date.Date == p.Date.Date && q.ProductCode == p.ProductCode);
                 var dtList = dtRecords.Where(d => d.Date.Date == p.Date.Date && d.ProductCode == p.ProductCode).ToList();
