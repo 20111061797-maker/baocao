@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { Chart } from 'react-chartjs-2';
-import { BarChart3, TrendingUp, SlidersHorizontal } from 'lucide-react';
+import { BarChart3, TrendingUp, SlidersHorizontal, Edit2 } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { PlanVsActualTrendItem } from '../types/dashboard';
+import { ProductionCrudContext } from './ProductionCrudModal';
 
 interface PlanVsActualWidgetProps {
   lang: Language;
   data: PlanVsActualTrendItem[];
   onDrillDownDate: (date: string) => void;
+  onOpenCrud?: (context?: ProductionCrudContext) => void;
 }
 
-export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, data, onDrillDownDate }) => {
+export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, data, onDrillDownDate, onOpenCrud }) => {
   const t = translations[lang];
   const [chartType, setChartType] = useState<'combo' | 'stacked' | 'grouped'>('combo');
   const [viewInterval, setViewInterval] = useState<'daily' | 'weekly'>('daily');
@@ -155,7 +157,31 @@ export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, da
         </div>
 
         {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {onOpenCrud && (
+            <button
+              type="button"
+              onClick={() => onOpenCrud({ section: 'plan' })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                background: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid rgba(59, 130, 246, 0.35)',
+                color: '#3b82f6',
+                cursor: 'pointer',
+              }}
+              title="Thêm, sửa hoặc xóa kế hoạch & sản lượng"
+            >
+              <Edit2 size={11} />
+              <span>Thêm / Sửa</span>
+            </button>
+          )}
+
           {/* Interval Switcher */}
           <div style={{ display: 'flex', background: 'var(--bg-input)', borderRadius: '6px', padding: '2px' }}>
             <button

@@ -23,7 +23,7 @@ import { InventoryAuditModal } from './components/InventoryAuditModal';
 import { InventoryWidget } from './components/InventoryWidget';
 import { UploadExcelModal } from './components/UploadExcelModal';
 import { LayoutSettingsModal } from './components/LayoutSettingsModal';
-import { ProductionCrudModal } from './components/ProductionCrudModal';
+import { ProductionCrudModal, ProductionCrudContext } from './components/ProductionCrudModal';
 import { InventoryCrudModal } from './components/InventoryCrudModal';
 
 export const App: React.FC = () => {
@@ -82,15 +82,21 @@ export const App: React.FC = () => {
   const [openProductionCrud, setOpenProductionCrud] = useState<boolean>(() => {
     return typeof window !== 'undefined' && (window.location.hash === '#production-form' || window.location.search.includes('production-form=true'));
   });
+  const [productionCrudContext, setProductionCrudContext] = useState<ProductionCrudContext | undefined>(undefined);
   const [openInventoryCrud, setOpenInventoryCrud] = useState<boolean>(() => {
     return typeof window !== 'undefined' && (window.location.hash === '#inventory-form' || window.location.search.includes('inventory-form=true'));
   });
+
+  const handleOpenProductionCrud = (context?: ProductionCrudContext) => {
+    setProductionCrudContext(context);
+    setOpenProductionCrud(true);
+  };
 
   useEffect(() => {
     const handleHash = () => {
       if (window.location.hash === '#audit') setOpenAudit(true);
       if (window.location.hash === '#8d') setProblemSolving({ open: true });
-      if (window.location.hash === '#production-form') setOpenProductionCrud(true);
+      if (window.location.hash === '#production-form') handleOpenProductionCrud();
       if (window.location.hash === '#inventory-form') setOpenInventoryCrud(true);
     };
     window.addEventListener('hashchange', handleHash);
@@ -189,7 +195,7 @@ export const App: React.FC = () => {
         onOpen8D={() => setProblemSolving({ open: true })}
         onOpenAudit={() => setOpenAudit(true)}
         onOpenLayout={() => setOpenLayout(true)}
-        onOpenProductionCrud={() => setOpenProductionCrud(true)}
+        onOpenProductionCrud={() => handleOpenProductionCrud()}
         onOpenInventoryCrud={() => setOpenInventoryCrud(true)}
       />
 
@@ -247,6 +253,7 @@ export const App: React.FC = () => {
                   lang={lang}
                   data={dashboardData.planVsActualTrend}
                   onDrillDownDate={(date) => handleDrillDown('date', date)}
+                  onOpenCrud={handleOpenProductionCrud}
                 />
               )}
 
@@ -255,6 +262,7 @@ export const App: React.FC = () => {
                   lang={lang}
                   data={dashboardData.productionByProduct}
                   onDrillDownProduct={(product) => handleDrillDown('product', product)}
+                  onOpenCrud={handleOpenProductionCrud}
                 />
               )}
             </div>
@@ -273,6 +281,7 @@ export const App: React.FC = () => {
                   lang={lang}
                   data={dashboardData.manpowerAnalysis}
                   shortageThreshold={shortageThreshold}
+                  onOpenCrud={handleOpenProductionCrud}
                 />
               )}
             </div>
@@ -309,6 +318,7 @@ export const App: React.FC = () => {
                 <UphWidget
                   lang={lang}
                   data={dashboardData.uphAnalysis}
+                  onOpenCrud={handleOpenProductionCrud}
                 />
               )}
             </div>
@@ -344,6 +354,16 @@ export const App: React.FC = () => {
           drillKey={drillDown.key}
           onClose={() => setDrillDown({ open: false, type: '', key: '' })}
           onCreate8D={(prod, def) => setProblemSolving({ open: true, initialProduct: prod, initialDefect: def })}
+          onEditRecord={(recordId) => {
+            handleOpenProductionCrud({ recordId });
+          }}
+          onCreateRecord={(ctx) => {
+            handleOpenProductionCrud(ctx);
+          }}
+          onDataChanged={() => {
+            setDataRefreshKey((k) => k + 1);
+            loadDashboardData();
+          }}
         />
       )}
 
@@ -368,12 +388,16 @@ export const App: React.FC = () => {
 
       {openProductionCrud && (
         <ProductionCrudModal
-          onClose={() => setOpenProductionCrud(false)}
+          onClose={() => {
+            setOpenProductionCrud(false);
+            setProductionCrudContext(undefined);
+          }}
           onSuccess={() => {
             setDataRefreshKey((k) => k + 1);
             loadDashboardData();
           }}
           availableProducts={dashboardData?.availableProducts}
+          initialContext={productionCrudContext}
         />
       )}
 

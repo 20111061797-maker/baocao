@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
 import { Bar, Line } from 'react-chartjs-2';
-import { Layers, SlidersHorizontal } from 'lucide-react';
+import { Layers, SlidersHorizontal, Edit2 } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { ProductionByProductItem } from '../types/dashboard';
+import { ProductionCrudContext } from './ProductionCrudModal';
 
 interface ProductionByProductWidgetProps {
   lang: Language;
   data: ProductionByProductItem[];
   onDrillDownProduct: (product: string) => void;
+  onOpenCrud?: (context?: ProductionCrudContext) => void;
 }
 
 export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps> = ({
   lang,
   data,
   onDrillDownProduct,
+  onOpenCrud,
 }) => {
   const t = translations[lang];
   const [chartType, setChartType] = useState<'horizontal' | 'column' | 'line' | 'stacked'>('horizontal');
@@ -105,20 +108,46 @@ export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps>
           <span>{t.productionByProduct}</span>
         </div>
 
-        {/* Chart Type Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <SlidersHorizontal size={13} color="var(--text-dim)" />
-          <select
-            className="select-custom"
-            value={chartType}
-            onChange={(e) => setChartType(e.target.value as any)}
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-          >
-            <option value="horizontal">Cột ngang (Horizontal Bar)</option>
-            <option value="column">Cột đứng (Column)</option>
-            <option value="line">{t.line}</option>
-            <option value="stacked">{t.stackedBar}</option>
-          </select>
+        {/* Chart Type Selector & Quick CRUD */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {onOpenCrud && (
+            <button
+              type="button"
+              onClick={() => onOpenCrud({ section: 'product' })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.35)',
+                color: '#10b981',
+                cursor: 'pointer',
+              }}
+              title="Thêm, sửa hoặc xóa sản lượng theo sản phẩm"
+            >
+              <Edit2 size={11} />
+              <span>Thêm / Sửa</span>
+            </button>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+            <SlidersHorizontal size={13} color="var(--text-dim)" />
+            <select
+              className="select-custom"
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+            >
+              <option value="horizontal">Cột ngang (Horizontal Bar)</option>
+              <option value="column">Cột đứng (Column)</option>
+              <option value="line">{t.line}</option>
+              <option value="stacked">{t.stackedBar}</option>
+            </select>
+          </div>
         </div>
       </div>
 

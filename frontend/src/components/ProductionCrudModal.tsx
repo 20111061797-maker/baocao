@@ -28,10 +28,18 @@ import {
 import { api } from '../services/api';
 import { ProductionRecordCrud } from '../types/dashboard';
 
+export interface ProductionCrudContext {
+  date?: string;
+  product?: string;
+  section?: 'plan' | 'product' | 'manpower' | 'uph' | string;
+  recordId?: number;
+}
+
 interface ProductionCrudModalProps {
   onClose: () => void;
   onSuccess: () => void;
   availableProducts?: string[];
+  initialContext?: ProductionCrudContext;
 }
 
 const PRODUCT_PRESETS: { [key: string]: { nameVi: string; tcgc: number; manBase: number } } = {
@@ -111,7 +119,7 @@ interface CustomDefectItem {
   qty: number;
 }
 
-export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClose, onSuccess }) => {
+export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClose, onSuccess, initialContext }) => {
   const [activeTab, setActiveTab] = useState<'form' | 'table'>('table');
   const [formData, setFormData] = useState<ProductionRecordCrud>(INITIAL_FORM);
   const [isEditing, setIsEditing] = useState<boolean>(false);
@@ -140,6 +148,35 @@ export const ProductionCrudModal: React.FC<ProductionCrudModalProps> = ({ onClos
 
   // Feedback state
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (initialContext) {
+      if (initialContext.recordId) {
+        api.getProductionCrudRecords({ pageSize: 100 })
+          .then((res) => {
+            const found = (res.records || []).find((r) => r.id === initialContext.recordId);
+            if (found) {
+              handleEditClick(found);
+            }
+          })
+          .catch(() => {});
+      } else {
+        const pCode = initialContext.product || '组装';
+        const preset = PRODUCT_PRESETS[pCode];
+        setFormData((prev) => ({
+          ...prev,
+          date: initialContext.date || new Date().toISOString().slice(0, 10),
+          productCode: pCode,
+          productNameVi: preset ? preset.nameVi : pCode,
+          standardWorkingTime: preset ? preset.tcgc : prev.standardWorkingTime,
+          plannedManpower: preset ? preset.manBase : prev.plannedManpower,
+          actualManpower: preset ? preset.manBase : prev.actualManpower,
+        }));
+        setIsEditing(false);
+        setActiveTab('form');
+      }
+    }
+  }, [initialContext]);
 
   // Calculations
   const standardDefectsSum = DEFAULT_DEFECT_CONFIG.reduce((acc, d) => {

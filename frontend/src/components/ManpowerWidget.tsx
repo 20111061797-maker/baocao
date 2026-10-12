@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
 import { Bar } from 'react-chartjs-2';
-import { Users, AlertTriangle, SlidersHorizontal } from 'lucide-react';
+import { Users, AlertTriangle, SlidersHorizontal, Edit2 } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { ManpowerAnalysisItem } from '../types/dashboard';
+import { ProductionCrudContext } from './ProductionCrudModal';
 
 interface ManpowerWidgetProps {
   lang: Language;
   data: ManpowerAnalysisItem[];
   shortageThreshold: number; // e.g. 0.05 for 5%
+  onOpenCrud?: (context?: ProductionCrudContext) => void;
 }
 
 export const ManpowerWidget: React.FC<ManpowerWidgetProps> = ({
   lang,
   data,
   shortageThreshold,
+  onOpenCrud,
 }) => {
   const t = translations[lang];
   const [chartMode, setChartMode] = useState<'stacked' | 'grouped'>('stacked');
@@ -48,6 +51,13 @@ export const ManpowerWidget: React.FC<ManpowerWidgetProps> = ({
   const options: any = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: (_event: any, elements: any[]) => {
+      if (elements.length > 0) {
+        const index = elements[0].index;
+        const date = labels[index];
+        if (onOpenCrud) onOpenCrud({ date, section: 'manpower' });
+      }
+    },
     plugins: {
       legend: {
         position: 'top',
@@ -100,18 +110,44 @@ export const ManpowerWidget: React.FC<ManpowerWidgetProps> = ({
           <span>{t.manpowerAnalysis}</span>
         </div>
 
-        {/* Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <SlidersHorizontal size={13} color="var(--text-dim)" />
-          <select
-            className="select-custom"
-            value={chartMode}
-            onChange={(e) => setChartMode(e.target.value as any)}
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-          >
-            <option value="stacked">Cột chồng (Stacked Bar)</option>
-            <option value="grouped">Cột nhóm (Grouped Bar)</option>
-          </select>
+        {/* Controls & Quick CRUD */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {onOpenCrud && (
+            <button
+              type="button"
+              onClick={() => onOpenCrud({ section: 'manpower' })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                background: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                color: '#38bdf8',
+                cursor: 'pointer',
+              }}
+              title="Thêm, sửa hoặc xóa bố trí nhân lực"
+            >
+              <Edit2 size={11} />
+              <span>Thêm / Sửa</span>
+            </button>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+            <SlidersHorizontal size={13} color="var(--text-dim)" />
+            <select
+              className="select-custom"
+              value={chartMode}
+              onChange={(e) => setChartMode(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+            >
+              <option value="stacked">Cột chồng (Stacked Bar)</option>
+              <option value="grouped">Cột nhóm (Grouped Bar)</option>
+            </select>
+          </div>
         </div>
       </div>
 

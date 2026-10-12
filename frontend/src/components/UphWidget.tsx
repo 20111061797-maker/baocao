@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { Chart, Bar } from 'react-chartjs-2';
-import { Zap, ArrowUpRight, ArrowDownRight, SlidersHorizontal } from 'lucide-react';
+import { Zap, ArrowUpRight, ArrowDownRight, SlidersHorizontal, Edit2 } from 'lucide-react';
 import { Language, translations } from '../i18n/translations';
 import { UphAnalysis } from '../types/dashboard';
+import { ProductionCrudContext } from './ProductionCrudModal';
 
 interface UphWidgetProps {
   lang: Language;
   data: UphAnalysis;
+  onOpenCrud?: (context?: ProductionCrudContext) => void;
 }
 
-export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
+export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data, onOpenCrud }) => {
   const t = translations[lang];
   // Default to daily progression trend ("đi lên theo ngày")
   const [viewMode, setViewMode] = useState<'trend' | 'byProduct'>('trend');
@@ -79,6 +81,18 @@ export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
   const chartOptions: any = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: (_event: any, elements: any[]) => {
+      if (elements.length > 0 && onOpenCrud) {
+        const index = elements[0].index;
+        if (viewMode === 'trend') {
+          const date = trend[index]?.date;
+          if (date) onOpenCrud({ date, section: 'uph' });
+        } else {
+          const prod = products[index]?.product;
+          if (prod) onOpenCrud({ product: prod, section: 'uph' });
+        }
+      }
+    },
     interaction: {
       mode: 'index',
       intersect: false,
@@ -121,18 +135,44 @@ export const UphWidget: React.FC<UphWidgetProps> = ({ lang, data }) => {
           <span>{t.uphDashboard}</span>
         </div>
 
-        {/* View Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <SlidersHorizontal size={13} color="var(--text-dim)" />
-          <select
-            className="select-custom"
-            value={viewMode}
-            onChange={(e) => setViewMode(e.target.value as any)}
-            style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
-          >
-            <option value="trend">📈 Theo Ngày (Tiến độ tăng dần)</option>
-            <option value="byProduct">📊 Theo Sản phẩm</option>
-          </select>
+        {/* View Switcher & Quick CRUD */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {onOpenCrud && (
+            <button
+              type="button"
+              onClick={() => onOpenCrud({ section: 'uph' })}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '3px 8px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                background: 'rgba(6, 182, 212, 0.15)',
+                border: '1px solid rgba(6, 182, 212, 0.35)',
+                color: '#06b6d4',
+                cursor: 'pointer',
+              }}
+              title="Thêm, sửa hoặc xóa dữ liệu UPH & sản xuất"
+            >
+              <Edit2 size={11} />
+              <span>Thêm / Sửa</span>
+            </button>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <SlidersHorizontal size={13} color="var(--text-dim)" />
+            <select
+              className="select-custom"
+              value={viewMode}
+              onChange={(e) => setViewMode(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+            >
+              <option value="trend">📈 Theo Ngày (Tiến độ tăng dần)</option>
+              <option value="byProduct">📊 Theo Sản phẩm</option>
+            </select>
+          </div>
         </div>
       </div>
 
