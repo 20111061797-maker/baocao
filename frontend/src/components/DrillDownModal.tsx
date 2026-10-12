@@ -367,7 +367,9 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {data.defectBreakdown.map((df) => (
+                      {[...(data.defectBreakdown || [])]
+                        .sort((a, b) => a.quantity - b.quantity)
+                        .map((df) => (
                         <tr key={df.defectKey}>
                           <td style={{ fontWeight: 600 }}>{df.defectNameVi}</td>
                           <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#f43f5e' }}>{df.quantity} pcs</td>
@@ -396,7 +398,9 @@ export const DrillDownModal: React.FC<DrillDownModalProps> = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {data.downtimeBreakdown.map((dt) => (
+                      {[...(data.downtimeBreakdown || [])]
+                        .sort((a, b) => a.minutes - b.minutes)
+                        .map((dt) => (
                         <tr key={dt.reason}>
                           <td>{dt.reason}</td>
                           <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>{dt.minutes} phút</td>

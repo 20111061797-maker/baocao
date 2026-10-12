@@ -17,8 +17,13 @@ export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, da
   const [chartType, setChartType] = useState<'combo' | 'stacked' | 'grouped'>('combo');
   const [viewInterval, setViewInterval] = useState<'daily' | 'weekly'>('daily');
 
+  // Chronological order from left to right
+  const sortedData = [...data].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
   // Labels & datasets
-  const labels = data.map((d) => d.date);
+  const labels = sortedData.map((d) => d.date);
 
   const chartData = {
     labels,
@@ -26,7 +31,7 @@ export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, da
       {
         type: 'bar' as const,
         label: `${t.kpiPlan} (Plan)`,
-        data: data.map((d) => d.planned),
+        data: sortedData.map((d) => d.planned),
         backgroundColor: 'rgba(59, 130, 246, 0.75)',
         borderColor: '#3b82f6',
         borderWidth: 1,
@@ -37,7 +42,7 @@ export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, da
       {
         type: 'bar' as const,
         label: `${t.kpiActual} (Actual)`,
-        data: data.map((d) => d.actual),
+        data: sortedData.map((d) => d.actual),
         backgroundColor: 'rgba(16, 185, 129, 0.85)',
         borderColor: '#10b981',
         borderWidth: 1,
@@ -50,7 +55,7 @@ export const PlanVsActualWidget: React.FC<PlanVsActualWidgetProps> = ({ lang, da
             {
               type: 'line' as const,
               label: `${t.kpiAchievement} (%)`,
-              data: data.map((d) => d.achievementRate),
+              data: sortedData.map((d) => d.achievementRate),
               borderColor: '#f59e0b',
               backgroundColor: 'rgba(245, 158, 11, 0.1)',
               borderWidth: 2.5,

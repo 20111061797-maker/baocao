@@ -21,15 +21,20 @@ export const ManpowerWidget: React.FC<ManpowerWidgetProps> = ({
   const t = translations[lang];
   const [chartMode, setChartMode] = useState<'stacked' | 'grouped'>('stacked');
 
-  const labels = data.map((d) => d.date);
-  const anyExceeding = data.some((d) => d.shortageRate > shortageThreshold * 100);
+  // Sort chronologically ascending from left to right
+  const sortedData = [...data].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const labels = sortedData.map((d) => d.date);
+  const anyExceeding = sortedData.some((d) => d.shortageRate > shortageThreshold * 100);
 
   const chartData = {
     labels,
     datasets: [
       {
         label: 'Đi làm thực tế (Actual)',
-        data: data.map((d) => d.actualManpower),
+        data: sortedData.map((d) => d.actualManpower),
         backgroundColor: 'rgba(59, 130, 246, 0.85)',
         borderColor: '#3b82f6',
         borderWidth: 1,
@@ -38,7 +43,7 @@ export const ManpowerWidget: React.FC<ManpowerWidgetProps> = ({
       },
       {
         label: 'Thiếu hụt (Missing)',
-        data: data.map((d) => d.missingManpower),
+        data: sortedData.map((d) => d.missingManpower),
         backgroundColor: 'rgba(244, 63, 94, 0.85)',
         borderColor: '#f43f5e',
         borderWidth: 1,

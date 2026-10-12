@@ -19,16 +19,24 @@ export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps>
   onOpenCrud,
 }) => {
   const t = translations[lang];
-  const [chartType, setChartType] = useState<'horizontal' | 'column' | 'line' | 'stacked'>('horizontal');
+  // Default to 'column' (cột đứng) so left to right progression is immediately obvious
+  const [chartType, setChartType] = useState<'column' | 'horizontal' | 'line' | 'stacked'>('column');
+  // Default to ascending (từ thấp đến cao từ trái qua phải) as requested
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const labels = data.map((d) => `${d.product} (${d.productNameVi})`);
+  // Sort products ascending: lowest production on left, highest on right
+  const sortedData = [...data].sort((a, b) =>
+    sortOrder === 'asc' ? a.actual - b.actual : b.actual - a.actual
+  );
+
+  const labels = sortedData.map((d) => `${d.product} (${d.productNameVi})`);
 
   const chartData = {
     labels,
     datasets: [
       {
         label: `${t.kpiPlan} (Plan)`,
-        data: data.map((d) => d.planned),
+        data: sortedData.map((d) => d.planned),
         backgroundColor: 'rgba(59, 130, 246, 0.75)',
         borderColor: '#3b82f6',
         borderWidth: 1,
@@ -37,7 +45,7 @@ export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps>
       },
       {
         label: `${t.kpiActual} (Actual)`,
-        data: data.map((d) => d.actual),
+        data: sortedData.map((d) => d.actual),
         backgroundColor: 'rgba(16, 185, 129, 0.85)',
         borderColor: '#10b981',
         borderWidth: 1,
@@ -56,7 +64,7 @@ export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps>
     onClick: (_event: any, elements: any[]) => {
       if (elements.length > 0) {
         const index = elements[0].index;
-        const item = data[index];
+        const item = sortedData[index];
         if (item) onDrillDownProduct(item.product);
       }
     },
@@ -134,16 +142,26 @@ export const ProductionByProductWidget: React.FC<ProductionByProductWidgetProps>
             </button>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <SlidersHorizontal size={13} color="var(--text-dim)" />
+            <select
+              className="select-custom"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+              title="Thứ tự hiển thị các sản phẩm"
+            >
+              <option value="asc">📈 Thấp → Cao (Từ trái qua phải)</option>
+              <option value="desc">📉 Cao → Thấp</option>
+            </select>
             <select
               className="select-custom"
               value={chartType}
               onChange={(e) => setChartType(e.target.value as any)}
               style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
             >
-              <option value="horizontal">Cột ngang (Horizontal Bar)</option>
               <option value="column">Cột đứng (Column)</option>
+              <option value="horizontal">Cột ngang (Horizontal Bar)</option>
               <option value="line">{t.line}</option>
               <option value="stacked">{t.stackedBar}</option>
             </select>

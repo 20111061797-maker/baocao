@@ -17,10 +17,24 @@ export const QualityParetoWidget: React.FC<QualityParetoWidgetProps> = ({
 }) => {
   const t = translations[lang];
   const [limit, setLimit] = useState<'top5' | 'top10' | 'all'>('all');
+  // Default to ascending (từ thấp đến cao từ trái qua phải) as requested
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  let displayedDefects = data.defects || [];
-  if (limit === 'top5') displayedDefects = displayedDefects.slice(0, 5);
-  else if (limit === 'top10') displayedDefects = displayedDefects.slice(0, 10);
+  let rawDefects = [...(data.defects || [])];
+  if (limit === 'top5') rawDefects = rawDefects.slice(0, 5);
+  else if (limit === 'top10') rawDefects = rawDefects.slice(0, 10);
+
+  // Sort ascending: lowest quantity on left, highest on right
+  const displayedDefects = [...rawDefects].sort((a, b) =>
+    sortOrder === 'asc' ? a.quantity - b.quantity : b.quantity - a.quantity
+  );
+
+  const totalQty = displayedDefects.reduce((acc, d) => acc + d.quantity, 0);
+  let runningQty = 0;
+  const cumulativeData = displayedDefects.map((d) => {
+    runningQty += d.quantity;
+    return totalQty > 0 ? Math.round((runningQty / totalQty) * 1000) / 10 : 0;
+  });
 
   const labels = displayedDefects.map((d) => `${d.defectNameVi} (${d.defectNameZh})`);
 
@@ -40,7 +54,7 @@ export const QualityParetoWidget: React.FC<QualityParetoWidgetProps> = ({
       {
         type: 'line' as const,
         label: `${t.cumulativePercent} (%)`,
-        data: displayedDefects.map((d) => d.cumulativePercentage),
+        data: cumulativeData,
         borderColor: '#06b6d4',
         backgroundColor: 'rgba(6, 182, 212, 0.15)',
         borderWidth: 2.5,
@@ -87,7 +101,8 @@ export const QualityParetoWidget: React.FC<QualityParetoWidgetProps> = ({
             const index = context[0].dataIndex;
             const item = displayedDefects[index];
             if (!item) return '';
-            return `\nTỷ trọng lỗi: ${item.percentage}%\nTích lũy: ${item.cumulativePercentage}%`;
+            const pct = totalQty > 0 ? Math.round((item.quantity / totalQty) * 1000) / 10 : 0;
+            return `\nTỷ trọng lỗi: ${pct}%\nTích lũy: ${cumulativeData[index]}%`;
           },
         },
       },
@@ -130,9 +145,22 @@ export const QualityParetoWidget: React.FC<QualityParetoWidgetProps> = ({
           <span>{t.qualityPareto}</span>
         </div>
 
-        {/* Controls: Top 5 / 10 / All */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <SlidersHorizontal size={13} color="var(--text-dim)" />
+        {/* Controls: Sort Order & Limit */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+            <SlidersHorizontal size={13} color="var(--text-dim)" />
+            <select
+              className="select-custom"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+              title="Thứ tự hiển thị các cột"
+            >
+              <option value="asc">📈 Thấp → Cao (Từ trái qua phải)</option>
+              <option value="desc">📉 Cao → Thấp</option>
+            </select>
+          </div>
+
           <select
             className="select-custom"
             value={limit}

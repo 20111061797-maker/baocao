@@ -13,8 +13,21 @@ export const DowntimeWidget: React.FC<DowntimeWidgetProps> = ({ lang, data }) =>
   const t = translations[lang];
   // Default to vertical Pareto column chart matching Quality Pareto widget!
   const [viewMode, setViewMode] = useState<'paretoVertical' | 'paretoHorizontal' | 'trend'>('paretoVertical');
+  // Default to ascending (từ thấp đến cao từ trái qua phải) as requested
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
-  const reasons = data.reasons || [];
+  const rawReasons = data.reasons || [];
+  const reasons = [...rawReasons].sort((a, b) =>
+    sortOrder === 'asc' ? a.minutes - b.minutes : b.minutes - a.minutes
+  );
+
+  const totalDowntime = reasons.reduce((acc, r) => acc + r.minutes, 0);
+  let runningMinutes = 0;
+  const cumulativeData = reasons.map((r) => {
+    runningMinutes += r.minutes;
+    return totalDowntime > 0 ? Math.round((runningMinutes / totalDowntime) * 1000) / 10 : 0;
+  });
+
   const reasonLabels = reasons.map((r) => r.reason);
 
   // Vertical Pareto Chart (Amber Bars + Cyan Cumulative Line)
@@ -34,7 +47,7 @@ export const DowntimeWidget: React.FC<DowntimeWidgetProps> = ({ lang, data }) =>
       {
         type: 'line' as const,
         label: 'Tích lũy (%)',
-        data: reasons.map((r) => r.cumulativePercentage),
+        data: cumulativeData,
         borderColor: '#06b6d4',
         backgroundColor: 'rgba(6, 182, 212, 0.15)',
         borderWidth: 2.5,
@@ -201,9 +214,21 @@ export const DowntimeWidget: React.FC<DowntimeWidgetProps> = ({ lang, data }) =>
           <span>{t.downtimeAnalysis}</span>
         </div>
 
-        {/* View Switcher */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+        {/* View Switcher & Sort Order */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
           <SlidersHorizontal size={13} color="var(--text-dim)" />
+          {viewMode !== 'trend' && (
+            <select
+              className="select-custom"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as any)}
+              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+              title="Thứ tự hiển thị các nguyên nhân dừng"
+            >
+              <option value="asc">📈 Thấp → Cao (Từ trái qua phải)</option>
+              <option value="desc">📉 Cao → Thấp</option>
+            </select>
+          )}
           <select
             className="select-custom"
             value={viewMode}

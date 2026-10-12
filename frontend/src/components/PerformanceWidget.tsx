@@ -14,14 +14,19 @@ export const PerformanceWidget: React.FC<PerformanceWidgetProps> = ({ lang, data
   const [metric, setMetric] = useState<'efficiency' | 'uph' | 'hours'>('efficiency');
   const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('area');
 
-  const labels = data.map((d) => d.date);
+  // Sort chronologically ascending from left to right
+  const sortedData = [...data].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const labels = sortedData.map((d) => d.date);
 
   const getMetricData = () => {
     switch (metric) {
       case 'uph':
         return {
           label: 'UPH (Sản phẩm / Giờ công)',
-          data: data.map((d) => d.uph),
+          data: sortedData.map((d) => d.uph),
           borderColor: '#06b6d4',
           bgColor: 'rgba(6, 182, 212, 0.25)',
           unit: 'pcs/h',
@@ -29,7 +34,7 @@ export const PerformanceWidget: React.FC<PerformanceWidgetProps> = ({ lang, data
       case 'hours':
         return {
           label: 'Giờ công (Working Hours)',
-          data: data.map((d) => d.workingHours),
+          data: sortedData.map((d) => d.workingHours),
           borderColor: '#8b5cf6',
           bgColor: 'rgba(139, 92, 246, 0.25)',
           unit: 'giờ/h',
@@ -38,7 +43,7 @@ export const PerformanceWidget: React.FC<PerformanceWidgetProps> = ({ lang, data
       default:
         return {
           label: 'Hiệu suất sản xuất (Efficiency %)',
-          data: data.map((d) => d.efficiency),
+          data: sortedData.map((d) => d.efficiency),
           borderColor: '#10b981',
           bgColor: 'rgba(16, 185, 129, 0.25)',
           unit: '%',
